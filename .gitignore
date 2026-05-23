@@ -1,0 +1,39 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# ── Virtual environments / secrets ────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# ── uv ────────────────────────────────────────────────────────────────────────
+.python-version
+
+# ── Trip data ─────────────────────────────────────────────────────────────────
+# JSON files created at runtime — don't commit user data
+data/trips/
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# ── Build / packaging ─────────────────────────────────────────────────────────
+dist/
+build/
+wheels/
+*.egg-info/
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

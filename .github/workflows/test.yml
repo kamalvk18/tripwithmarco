@@ -1,0 +1,34 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: Run test suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --tb=short
+        env:
+          # Tests are fully mocked — no real keys needed.
+          # Set to empty strings so os.getenv() returns a non-None value
+          # if any module reads them at import time.
+          ANTHROPIC_API_KEY: "test-placeholder"
+          OPENWEATHER_API_KEY: "test-placeholder"
+          SERPAPI_KEY: "test-placeholder"

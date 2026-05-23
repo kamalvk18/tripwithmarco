@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { Plane } from 'lucide-react'
+import { Plane, Send } from 'lucide-react'
 import { extractInfo, saveTrip } from '@/lib/api'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { Button } from '@/components/ui/Button'
@@ -36,6 +36,21 @@ function Select({ children, ...props }) {
   )
 }
 
+/** Returns true if the message looks like a complete day-by-day itinerary. */
+function hasFullItinerary(text) {
+  return /\bday\s+1\b/i.test(text)
+}
+
+/** Extract [OPTION: label] markers from Marco's response. */
+function extractOptions(text) {
+  return [...text.matchAll(/\[OPTION:\s*([^\]]+)\]/g)].map(m => m[1].trim())
+}
+
+/** Strip [OPTION: ...] lines from text before displaying. */
+function stripOptions(text) {
+  return text.replace(/^\[OPTION:[^\]]*\]\s*$/gim, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 export default function PlanTrip() {
   const navigate = useNavigate()
   const { streaming, toolStatus, send } = useSSEChat()
@@ -53,15 +68,32 @@ export default function PlanTrip() {
     notes: '',
   })
 
-  const [response, setResponse] = useState('')
-  const [started, setStarted]   = useState(false)
+  // Conversation state
+  const [started, setStarted]          = useState(false)
+  const [messages, setMessages]        = useState([])
+  const [streamingText, setStreamText] = useState('')
+  const [quickReplies, setQuickReplies] = useState([])
+  const [input, setInput]              = useState('')
+  const [saving, setSaving]            = useState(false)
   const responseRef = useRef('')
-  const abortRef    = useRef(null)
+  const bottomRef   = useRef(null)
+  const inputRef    = useRef(null)
+
+  // Auto-scroll to bottom as Marco types
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, streamingText])
+
+  // Focus input after Marco finishes
+  useEffect(() => {
+    if (!streaming && started && !saving) {
+      inputRef.current?.focus()
+    }
+  }, [streaming, started, saving])
 
   function setField(key, val) {
     setForm(f => ({ ...f, [key]: val }))
   }
-
   function toggleStyle(style) {
     setForm(f => ({
       ...f,
@@ -87,72 +119,94 @@ export default function PlanTrip() {
     ].filter(Boolean).join(' ')
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!form.destination || !form.startDate || !form.endDate) return
-
-    const userMsg = buildPrompt()
-    const messages = [{ role: 'user', content: userMsg }]
+  /** Core: send a message to Marco, stream response, handle auto-save on itinerary. */
+  async function sendMessage(userContent, prevMessages = messages) {
+    const userMsg  = { role: 'user', content: userContent }
+    const withUser = [...prevMessages, userMsg]
+    setMessages(withUser)
+    setQuickReplies([])        // clear option buttons on every new send
     responseRef.current = ''
-    setResponse('')
-    setStarted(true)
-
-    const finalMessages = [...messages]
+    setStreamText('')
 
     await send({
-      messages,
+      messages: withUser,
       onChunk: (chunk) => {
         responseRef.current += chunk
-        setResponse(responseRef.current)
+        setStreamText(responseRef.current)
       },
       onDone: async () => {
-        const assistantContent = responseRef.current
-        finalMessages.push({ role: 'assistant', content: assistantContent })
+        const assistantMsg = { role: 'assistant', content: responseRef.current }
+        const finalMessages = [...withUser, assistantMsg]
+        setMessages(finalMessages)
+        setStreamText('')
 
-        // Extract trip metadata + save
-        const currency = form.currency
-        const extracted = await extractInfo(finalMessages, currency)
+        // Surface any [OPTION: ...] choices as quick-reply buttons
+        setQuickReplies(extractOptions(responseRef.current))
 
-        const tripData = {
-          destination: extracted.destination || form.destination,
-          dates: `${form.startDate} to ${form.endDate}`,
-          start_date: extracted.start_date || form.startDate,
-          end_date: extracted.end_date || form.endDate,
-          city: extracted.city || form.destination,
-          country_code: extracted.country_code || '',
-          budget: parseFloat(form.budget) || 0,
-          currency,
-          budget_breakdown: extracted.budget_breakdown || {},
-          messages: finalMessages,
-          day_overrides: {},
-        }
-
-        try {
-          const tripId = await saveTrip(tripData)
-          navigate(`/trips/${tripId}`)
-        } catch {
-          // still navigate with state if save fails
-          navigate('/')
+        // Auto-save + navigate once a full itinerary appears
+        if (hasFullItinerary(responseRef.current)) {
+          await saveAndNavigate(finalMessages)
         }
       },
     })
   }
 
-  return (
-    <div className="max-w-2xl mx-auto px-6 py-10">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
-          <Plane className="text-indigo-400" size={22} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Plan a Trip</h1>
-          <p className="text-slate-400 text-sm">Marco will search live flights, hotels & weather</p>
-        </div>
-      </div>
+  async function saveAndNavigate(msgs) {
+    setSaving(true)
+    try {
+      const extracted = await extractInfo(msgs, form.currency)
+      const tripData = {
+        destination: extracted.destination || form.destination,
+        dates: `${form.startDate} to ${form.endDate}`,
+        start_date: extracted.start_date || form.startDate,
+        end_date: extracted.end_date || form.endDate,
+        city: extracted.city || form.destination,
+        country_code: extracted.country_code || '',
+        budget: parseFloat(form.budget) || 0,
+        currency: form.currency,
+        budget_breakdown: extracted.budget_breakdown || {},
+        messages: msgs,
+        day_overrides: {},
+      }
+      const tripId = await saveTrip(tripData)
+      navigate(`/trips/${tripId}`)
+    } catch {
+      navigate('/')
+    }
+  }
 
-      {/* Form */}
-      {!started && (
-        <form onSubmit={handleSubmit} className="space-y-5">
+  // ── Form submit (first turn) ────────────────────────────────────────────────
+  async function handleFormSubmit(e) {
+    e.preventDefault()
+    if (!form.destination || !form.startDate || !form.endDate) return
+    setStarted(true)
+    await sendMessage(buildPrompt(), [])
+  }
+
+  // ── Subsequent turns ────────────────────────────────────────────────────────
+  async function handleChat(e) {
+    e.preventDefault()
+    const text = input.trim()
+    if (!text || streaming || saving) return
+    setInput('')
+    await sendMessage(text)
+  }
+
+  // ── Render: form (before first send) ───────────────────────────────────────
+  if (!started) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-10">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
+            <Plane className="text-indigo-400" size={22} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-100">Plan a Trip</h1>
+            <p className="text-slate-400 text-sm">Marco will search live flights, hotels & weather</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleFormSubmit} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Destination *</Label>
@@ -270,34 +324,142 @@ export default function PlanTrip() {
             <Plane size={16} /> Generate My Trip Plan
           </Button>
         </form>
-      )}
+      </div>
+    )
+  }
 
-      {/* Streaming response */}
-      {started && (
-        <div>
-          {toolStatus && (
-            <div className="flex items-center gap-2 text-sm text-indigo-300 mb-4 bg-indigo-900/20 border border-indigo-800/40 rounded-lg px-4 py-2">
-              <Spinner className="w-4 h-4" />
-              {toolStatus}
-            </div>
-          )}
-
-          {streaming && !response && !toolStatus && (
-            <div className="flex items-center gap-2 text-sm text-slate-400 mb-4">
-              <Spinner className="w-4 h-4" /> Marco is thinking…
-            </div>
-          )}
-
-          <div className={`prose max-w-none text-sm leading-relaxed ${streaming ? 'streaming-cursor' : ''}`}>
-            <ReactMarkdown>{response}</ReactMarkdown>
-          </div>
-
-          {streaming && (
-            <p className="text-xs text-slate-500 mt-4">
-              Saving your trip when Marco is done…
-            </p>
-          )}
+  // ── Render: chat (after first send) ────────────────────────────────────────
+  return (
+    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
+          <Plane className="text-indigo-400" size={18} />
         </div>
+        <div>
+          <h1 className="text-lg font-bold text-slate-100">
+            Planning: {form.destination}
+          </h1>
+          <p className="text-slate-500 text-xs">{form.startDate} → {form.endDate} · {form.budget} {form.currency}</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 space-y-4 mb-6">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+            {/* Avatar */}
+            {msg.role === 'assistant' && (
+              <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
+                text-white text-xs font-bold shrink-0 mt-0.5">
+                M
+              </div>
+            )}
+
+            {/* Bubble */}
+            <div className={`rounded-2xl px-4 py-3 text-sm max-w-[88%] ${
+              msg.role === 'user'
+                ? 'bg-indigo-600 text-white rounded-tr-sm'
+                : 'bg-[#1a1d27] border border-[#2e3248] text-slate-200 rounded-tl-sm'
+            }`}>
+              {msg.role === 'assistant'
+                ? (
+                  <div className="prose prose-sm prose-invert max-w-none
+                    prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100">
+                    <ReactMarkdown>{stripOptions(msg.content)}</ReactMarkdown>
+                  </div>
+                )
+                : msg.content
+              }
+            </div>
+          </div>
+        ))}
+
+        {/* Quick-reply option buttons — shown after Marco's last message */}
+        {quickReplies.length > 0 && !streaming && (
+          <div className="flex flex-wrap gap-2 pl-10">
+            {quickReplies.map((opt, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => sendMessage(opt)}
+                className="px-4 py-2 rounded-full text-sm border border-indigo-600/60
+                  bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/40
+                  hover:border-indigo-500 transition-colors cursor-pointer"
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Streaming bubble */}
+        {streamingText && (
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
+              text-white text-xs font-bold shrink-0 mt-0.5">
+              M
+            </div>
+            <div className="bg-[#1a1d27] border border-[#2e3248] rounded-2xl rounded-tl-sm
+              px-4 py-3 text-sm max-w-[88%] text-slate-200">
+              <div className="prose prose-sm prose-invert max-w-none
+                prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100 streaming-cursor">
+                <ReactMarkdown>{stripOptions(streamingText)}</ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tool status */}
+        {toolStatus && (
+          <div className="flex items-center gap-2 text-xs text-indigo-300 bg-indigo-900/20
+            border border-indigo-800/40 rounded-lg px-3 py-2 w-fit">
+            <Spinner className="w-3 h-3" /> {toolStatus}
+          </div>
+        )}
+
+        {/* Thinking (no text yet) */}
+        {streaming && !streamingText && !toolStatus && (
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
+              text-white text-xs font-bold shrink-0">M</div>
+            <span className="animate-pulse">Marco is thinking…</span>
+          </div>
+        )}
+
+        {/* Saving */}
+        {saving && (
+          <div className="flex items-center gap-2 text-xs text-indigo-300 bg-indigo-900/20
+            border border-indigo-800/40 rounded-lg px-3 py-2 w-fit">
+            <Spinner className="w-3 h-3" /> Saving your trip…
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input — stays at bottom, hidden while saving */}
+      {!saving && (
+        <form onSubmit={handleChat} className="flex gap-2 sticky bottom-4">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            disabled={streaming}
+            placeholder={streaming ? 'Marco is typing…' : 'Reply to Marco…'}
+            className="flex-1 rounded-xl bg-[#22263a] border border-[#2e3248] text-slate-200
+              px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
+              transition-colors disabled:opacity-50"
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={streaming || !input.trim()}
+            className="px-4"
+          >
+            <Send size={16} />
+          </Button>
+        </form>
       )}
     </div>
   )

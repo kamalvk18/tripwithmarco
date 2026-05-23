@@ -2,7 +2,9 @@ import json
 import os
 from datetime import datetime
 
-TRIPS_DIR = "data/trips"
+# In production (Fly.io) this is set to /data/trips via the TRIPS_DIR env var.
+# Locally it defaults to data/trips relative to the working directory.
+TRIPS_DIR = os.getenv("TRIPS_DIR", "data/trips")
 
 def ensure_storage():
     """Make sure the storage directory exists."""

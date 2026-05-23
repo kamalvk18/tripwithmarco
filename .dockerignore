@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local data (trips are persisted on Fly volume)
+data/
+
+# Dev / IDE
+.env
+.DS_Store
+.vscode/
+*.log
+
+# Git
+.git/
+.gitignore

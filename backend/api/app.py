@@ -21,16 +21,62 @@ Endpoints:
     GET  /docs                            → Swagger UI
 """
 
+import base64
+import os
+import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 from dotenv import load_dotenv
 
 from backend.api.routes.trips import router as trips_router
 from backend.api.routes.chat import router as chat_router
 
 load_dotenv()
+
+# Path to the built React app (present in production Docker image; absent in dev)
+_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
+
+
+# ── Optional HTTP Basic Auth ──────────────────────────────────────────────────
+# Set AUTH_USER and AUTH_PASS as Fly secrets to enable password protection.
+# Leave them unset locally — the middleware skips auth entirely when absent.
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        auth_user = os.getenv("AUTH_USER", "")
+        auth_pass = os.getenv("AUTH_PASS", "")
+
+        # Auth disabled — let everything through (local dev)
+        if not auth_user or not auth_pass:
+            return await call_next(request)
+
+        # /health must stay open so Fly's health checks pass without credentials
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+                username, _, password = decoded.partition(":")
+                user_ok = secrets.compare_digest(username.encode(), auth_user.encode())
+                pass_ok = secrets.compare_digest(password.encode(), auth_pass.encode())
+                if user_ok and pass_ok:
+                    return await call_next(request)
+            except Exception:
+                pass
+
+        return Response(
+            "Unauthorized — please log in.",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Solo Travel Agent"'},
+        )
 
 
 @asynccontextmanager
@@ -49,7 +95,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow Streamlit (8501) and React dev server (5173)
+# ── Auth (added before CORS so it runs first) ─────────────────────────────────
+app.add_middleware(BasicAuthMiddleware)
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# In production the React app is served by FastAPI itself (same origin),
+# so no cross-origin requests happen. Keep localhost entries for local dev.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -62,6 +113,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── API routes ────────────────────────────────────────────────────────────────
 app.include_router(trips_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 
@@ -70,3 +122,18 @@ app.include_router(chat_router, prefix="/api")
 def health():
     """Liveness check — returns 200 when the server is up."""
     return {"status": "ok"}
+
+
+# ── React SPA static files (production only) ──────────────────────────────────
+# Vite outputs hashed asset files to dist/assets/ — mount them first so they're
+# served efficiently. The catch-all below then returns index.html for every
+# other path so React Router can handle client-side navigation.
+if _DIST.is_dir():
+    _assets = _DIST / "assets"
+    if _assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets)), name="vite-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """Return index.html for all non-API paths (React Router SPA fallback)."""
+        return FileResponse(str(_DIST / "index.html"))

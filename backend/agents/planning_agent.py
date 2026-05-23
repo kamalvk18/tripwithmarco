@@ -309,6 +309,66 @@ Use this to adjust today's plan. Don't mention you fetched it — just act on it
 
     yield from run_agentic_loop(messages, system_with_context, on_tool_call=on_tool_call)
 
+def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:
+    """
+    Use Claude Haiku to generate a pre-trip checklist.
+
+    Returns a list of dicts: [{category, item, priority}]
+    Categories: visa, health, insurance, documents, kit
+    Priorities: high | normal | low
+    """
+    prompt = f"""Generate a concise pre-trip checklist for a solo traveller.
+
+Destination: {destination}
+Passport country: {passport_country or "not specified"}
+Departure date: {start_date or "soon"}
+
+Return ONLY valid JSON — an array of objects, no prose, no markdown fences:
+[
+  {{"category": "visa", "item": "Check visa requirements for {destination}", "priority": "high"}},
+  ...
+]
+
+Categories to cover (only include relevant items):
+- visa: entry requirements, e-visa links, on-arrival conditions
+- health: vaccinations recommended/required, medication, travel clinic
+- insurance: travel insurance, medical evacuation cover
+- documents: passport validity (6 months+), copies, emergency contacts
+- kit: adaptor type, SIM card, offline maps, currency
+
+Be specific to the destination. Keep each item under 12 words. Return 8-15 items total."""
+
+    try:
+        response = client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        # Strip markdown fences if Haiku adds them
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        items = json.loads(raw)
+        # Validate structure
+        validated = []
+        for item in items:
+            if isinstance(item, dict) and "item" in item:
+                validated.append({
+                    "category": item.get("category", "documents"),
+                    "item": item["item"],
+                    "priority": item.get("priority", "normal"),
+                })
+        return validated
+    except Exception as exc:
+        print(f"generate_checklist error: {exc}")
+        # Return a minimal fallback checklist
+        return [
+            {"category": "documents", "item": "Check passport validity (6+ months)", "priority": "high"},
+            {"category": "insurance", "item": "Purchase travel insurance", "priority": "high"},
+            {"category": "visa", "item": f"Check visa requirements for {destination}", "priority": "high"},
+        ]
+
+
 if __name__ == "__main__":
     test_messages = [
         {

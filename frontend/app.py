@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import sys
 import os
@@ -288,6 +289,37 @@ elif st.session_state.view_mode == "trip":
     messages = st.session_state.get("messages", [])
     status, extra = get_trip_status(trip_data)
 
+    # ── Rebuild Today (triggered by button on previous render) ────────────────────
+    if st.session_state.get("rebuilding_day"):
+        day_num = st.session_state.pop("rebuilding_day")
+        city = trip_data.get("city") or trip_data.get("destination", "")
+        rebuild_prompt = (
+            f"Rebuild Day {day_num}'s itinerary based on today's actual weather in {city}. "
+            f"Use the weather tool to check current conditions, then restructure: if rain or "
+            f"bad weather is forecast, move outdoor activities to better windows or swap them "
+            f"for indoor alternatives. Keep the same neighbourhood and general vibe. "
+            f"Output ONLY the rebuilt day plan, starting with 'Day {day_num} — [New Title]'. "
+            f"No preamble, no commentary."
+        )
+        rebuild_msgs = messages + [{"role": "user", "content": rebuild_prompt}]
+        st.markdown(f"### 🔄 Rebuilding Day {day_num} around today's weather...")
+        _rb_status = st.empty()
+        rebuilt = st.write_stream(api.chat_stream(
+            rebuild_msgs,
+            trip_data=trip_data,
+            companion_mode=True,
+            on_tool_call=_make_tool_status_callback(_rb_status),
+        ))
+        _rb_status.empty()
+        overrides = dict(trip_data.get("day_overrides") or {})
+        overrides[str(day_num)] = rebuilt
+        updated_trip = {**trip_data, "day_overrides": overrides, "messages": messages}
+        _tid = st.session_state.get("active_trip_id")
+        if _tid:
+            api.update_trip(_tid, updated_trip)
+        st.session_state.trip_data = updated_trip
+        st.rerun()
+
     # ── Header ───────────────────────────────────────────────────────────────────
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -331,6 +363,12 @@ elif st.session_state.view_mode == "trip":
                 row[1].metric("Marco's Estimate", f"{currency} {total_estimated:,.0f}",
                               delta=delta_str,
                               delta_color="normal" if not delta or delta >= 0 else "inverse")
+                if delta is not None and delta < 0:
+                    overage = abs(delta)
+                    st.warning(
+                        f"⚠️ Marco's estimate is **{currency} {overage:,.0f} over your budget**. "
+                        f"Open **Ask Marco** below and ask him to find cheaper flights or hotels."
+                    )
             elif not visible:
                 st.caption("Budget breakdown will appear after your itinerary is generated.")
 
@@ -374,13 +412,19 @@ elif st.session_state.view_mode == "trip":
     # ── Day-by-day itinerary ──────────────────────────────────────────────────
     itinerary = extract_itinerary(messages)
     days = extract_all_days(itinerary)
+    day_overrides = trip_data.get("day_overrides") or {}
 
     if days:
         for day_data in days:
             is_today = (status == "active" and day_data["day"] == extra)
-            label = f"📍 {day_data['title']}  ← today" if is_today else day_data["title"]
+            has_override = str(day_data["day"]) in day_overrides
+            label = day_data["title"]
+            if is_today:
+                label = f"📍 {label}  ← today"
+            if has_override:
+                label += "  🔄 rebuilt"
             with st.expander(label, expanded=is_today):
-                st.markdown(day_data["content"])
+                st.markdown(day_overrides.get(str(day_data["day"]), day_data["content"]))
     elif itinerary:
         st.markdown(itinerary)
     else:
@@ -390,23 +434,94 @@ elif st.session_state.view_mode == "trip":
 
     # ── Action buttons ────────────────────────────────────────────────────────
     def _build_export_markdown() -> str:
-        """Build a markdown export of the full trip."""
         dest = trip_data.get("destination", "Trip")
-        dates = trip_data.get("dates", "")
         bgt = trip_data.get("budget")
         cur = trip_data.get("currency", "")
-        header = f"# {dest}\n**Dates:** {dates}"
+        header = f"# {dest}\n**Dates:** {trip_data.get('dates', '')}"
         if bgt:
             header += f"  |  **Budget:** {cur} {bgt:,.0f}"
         return f"{header}\n\n---\n\n{itinerary}" if itinerary else header
+
+    def _build_ics() -> str:
+        """iCalendar file — one all-day event per trip day."""
+        def _esc(s: str) -> str:
+            return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+        lines = [
+            "BEGIN:VCALENDAR", "VERSION:2.0",
+            "PRODID:-//Solo Travel Agent//Marco//EN",
+            "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        ]
+        try:
+            start_obj = date.fromisoformat(trip_data.get("start_date", ""))
+            tid = trip_data.get("trip_id", "trip")
+            for d in days:
+                day_date = start_obj + timedelta(days=d["day"] - 1)
+                title = re.sub(r"[#*`_]", "", d["title"]).strip()
+                desc  = re.sub(r"[#*`_]", "", d["content"])[:400].replace("\n", " ").strip()
+                lines += [
+                    "BEGIN:VEVENT",
+                    f"DTSTART;VALUE=DATE:{day_date.strftime('%Y%m%d')}",
+                    f"DTEND;VALUE=DATE:{(day_date + timedelta(days=1)).strftime('%Y%m%d')}",
+                    f"SUMMARY:{_esc(trip_data.get('destination','') + ' — ' + title)}",
+                    f"DESCRIPTION:{_esc(desc)}",
+                    f"UID:{tid}-day{d['day']}@solo-travel-agent",
+                    "END:VEVENT",
+                ]
+        except (ValueError, TypeError):
+            pass
+        lines.append("END:VCALENDAR")
+        return "\r\n".join(lines)
+
+    def _build_offline_html() -> str:
+        """Self-contained HTML — works without internet, dark-mode aware."""
+        dest  = trip_data.get("destination", "Trip")
+        bgt   = trip_data.get("budget")
+        cur   = trip_data.get("currency", "")
+        meta  = trip_data.get("dates", "")
+        if bgt:
+            meta += f"  ·  Budget: {cur} {bgt:,.0f}"
+
+        blocks = ""
+        for d in days:
+            content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", d["content"])
+            content = re.sub(r"^#{1,3}\s*(.+)$", r"<h3>\1</h3>", content, flags=re.MULTILINE)
+            content = content.replace("\n\n", "</p><p>").replace("\n", "<br>")
+            title   = re.sub(r"[#*`_]", "", d["title"]).strip()
+            blocks += f'<details><summary>{title}</summary><div class="body"><p>{content}</p></div></details>\n'
+
+        return f"""<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{dest}</title>
+  <style>
+    *{{box-sizing:border-box;margin:0;padding:0}}
+    body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:780px;margin:0 auto;padding:20px;color:#1a1a2e}}
+    h1{{font-size:1.6rem;margin-bottom:4px}} .meta{{color:#666;font-size:.9rem;margin-bottom:24px}}
+    details{{border:1px solid #e0e0e0;border-radius:10px;margin-bottom:10px;overflow:hidden}}
+    summary{{padding:14px 16px;font-weight:600;cursor:pointer;background:#f8f9fa;user-select:none}}
+    summary:hover{{background:#e9ecef}}
+    .body{{padding:16px;line-height:1.75;font-size:.95rem}} .body p{{margin-bottom:12px}}
+    h3{{margin:12px 0 6px;font-size:1rem;color:#444}} strong{{color:#1a1a2e}}
+    footer{{margin-top:40px;color:#aaa;font-size:.75rem;text-align:center}}
+    @media(prefers-color-scheme:dark){{
+      body{{background:#121212;color:#e0e0e0}} details{{border-color:#333}}
+      summary{{background:#1e1e1e}} strong{{color:#e0e0e0}} h3{{color:#bbb}}
+    }}
+  </style>
+</head><body>
+  <h1>📍 {dest}</h1><p class="meta">{meta}</p>
+  {blocks}
+  <footer>Generated by Trip Companion · Works offline</footer>
+</body></html>"""
+
+    dest_slug = trip_data.get("destination", "trip").replace(",", "").replace(" ", "_").lower()
 
     if status == "active":
         col1, col2, col3 = st.columns([3, 2, 2])
         with col1:
             if st.button(
                 f"🧭 I'm on Day {extra} — What should I do?",
-                use_container_width=True,
-                type="primary"
+                use_container_width=True, type="primary",
             ):
                 st.session_state.companion_mode = True
                 st.session_state.messages.append({
@@ -415,38 +530,53 @@ elif st.session_state.view_mode == "trip":
                 })
                 st.rerun()
         with col2:
-            if st.button("🔄 Regenerate Plan", use_container_width=True):
-                if messages:
-                    st.session_state.messages = [messages[0]]
-                    st.session_state.itinerary_generated = False
-                    st.rerun()
+            if itinerary and st.button("🔄 Rebuild Today", use_container_width=True,
+                                       help="Regenerate today's plan around current weather"):
+                st.session_state["rebuilding_day"] = extra
+                st.rerun()
         with col3:
-            if itinerary:
-                dest_slug = trip_data.get("destination", "trip").replace(",", "").replace(" ", "_").lower()
-                st.download_button(
-                    "📥 Export Itinerary",
-                    data=_build_export_markdown(),
-                    file_name=f"{dest_slug}_itinerary.md",
-                    mime="text/markdown",
-                    use_container_width=True,
-                )
-    else:
-        col1, col2 = st.columns([2, 2])
-        with col1:
-            if st.button("🔄 Regenerate Plan", use_container_width=True):
+            if st.button("↺ Regenerate Plan", use_container_width=True,
+                         help="Rebuild the entire itinerary from scratch"):
                 if messages:
                     st.session_state.messages = [messages[0]]
                     st.session_state.itinerary_generated = False
                     st.rerun()
-        with col2:
-            if itinerary:
-                dest_slug = trip_data.get("destination", "trip").replace(",", "").replace(" ", "_").lower()
+    else:
+        if st.button("↺ Regenerate Plan", help="Rebuild the entire itinerary from scratch"):
+            if messages:
+                st.session_state.messages = [messages[0]]
+                st.session_state.itinerary_generated = False
+                st.rerun()
+
+    if itinerary:
+        with st.expander("📤 Export & Share"):
+            ec1, ec2, ec3 = st.columns(3)
+            with ec1:
                 st.download_button(
-                    "📥 Export Itinerary",
+                    "📝 Markdown",
                     data=_build_export_markdown(),
                     file_name=f"{dest_slug}_itinerary.md",
                     mime="text/markdown",
                     use_container_width=True,
+                    help="For Notion, Obsidian, or any notes app",
+                )
+            with ec2:
+                st.download_button(
+                    "📅 Calendar (.ics)",
+                    data=_build_ics(),
+                    file_name=f"{dest_slug}_trip.ics",
+                    mime="text/calendar",
+                    use_container_width=True,
+                    help="Import into Google Calendar, Apple Calendar, or Outlook",
+                )
+            with ec3:
+                st.download_button(
+                    "📱 Offline HTML",
+                    data=_build_offline_html(),
+                    file_name=f"{dest_slug}_trip.html",
+                    mime="text/html",
+                    use_container_width=True,
+                    help="Save to your phone — no internet needed on the trip",
                 )
 
     st.divider()

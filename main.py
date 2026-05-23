@@ -2,9 +2,9 @@
 Entry point for Solo Travel Agent.
 
 Usage:
-    uv run main.py          # launch Streamlit UI only (legacy — requires API separately)
     uv run main.py --api    # launch FastAPI server only (port 8000)
-    uv run main.py --both   # launch API + Streamlit together (recommended)
+    uv run main.py --ui     # launch React dev server only (port 5173)
+    uv run main.py --both   # launch API + React UI together (recommended)
     uv run main.py --help   # show this help
 """
 
@@ -16,7 +16,6 @@ import time
 def _wait_for_api(url: str, timeout: int = 15) -> bool:
     """Poll the health endpoint until the API is ready or timeout expires."""
     import urllib.request
-    import urllib.error
 
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -44,6 +43,11 @@ def main():
             check=True,
         )
 
+    elif "--ui" in args:
+        print("🌍 Starting React UI on http://localhost:5173 ...")
+        print("   ℹ️  Requires the API server. Run with --both, or start it separately.")
+        subprocess.run(["npm", "run", "dev"], cwd="frontend", check=True)
+
     elif "--both" in args:
         port = "8000"
         print(f"🚀 Starting API server on http://localhost:{port} ...")
@@ -53,24 +57,18 @@ def main():
         if _wait_for_api(f"http://localhost:{port}"):
             print(f"   ✅ API ready — docs at http://localhost:{port}/docs")
         else:
-            print("   ⚠️  API didn't respond in time — Streamlit will show a warning.")
+            print("   ⚠️  API didn't respond in time — UI will show a warning.")
 
-        print("🌍 Starting Streamlit UI ...")
+        print("🌍 Starting React UI on http://localhost:5173 ...")
         try:
-            subprocess.run(["streamlit", "run", "frontend/app.py"], check=True)
+            subprocess.run(["npm", "run", "dev"], cwd="frontend", check=True)
         finally:
             print("\n🛑 Shutting down API server...")
             api_proc.terminate()
             api_proc.wait()
 
     else:
-        print("🌍 Starting Solo Travel Agent UI...")
-        print("   ℹ️  The UI now requires the API server. Run with --both, or")
-        print("   start the API separately: uv run main.py --api")
-        subprocess.run(
-            ["streamlit", "run", "frontend/app.py"],
-            check=True,
-        )
+        print(__doc__)
 
 
 if __name__ == "__main__":

@@ -69,6 +69,41 @@ class OkResponse(BaseModel):
     ok: bool = True
 
 
+# ── Expenses ─────────────────────────────────────────────────────────────────
+
+EXPENSE_CATEGORIES = ["flights", "accommodation", "food", "activities", "transport", "misc"]
+
+class ExpenseCreate(BaseModel):
+    """Body for POST /trips/{trip_id}/expenses."""
+    category: str
+    amount: float
+    description: str = ""
+    date: str = ""          # ISO date string, defaults to today on server
+
+
+class Expense(BaseModel):
+    """A single logged expense entry."""
+    id: str
+    category: str
+    amount: float
+    description: str = ""
+    date: str = ""
+
+
+# ── Checklist ────────────────────────────────────────────────────────────────
+
+class ChecklistItem(BaseModel):
+    id: str
+    category: str           # "visa", "health", "insurance", "documents", "kit"
+    item: str
+    completed: bool = False
+    priority: str = "normal"   # "high" | "normal" | "low"
+
+
+class ChecklistResponse(BaseModel):
+    items: list[ChecklistItem]
+
+
 # ── Extraction ────────────────────────────────────────────────────────────────
 
 class ExtractRequest(BaseModel):

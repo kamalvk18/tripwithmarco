@@ -26,6 +26,10 @@ data/trips/
 htmlcov/
 coverage.xml
 
+# ── Node / React ──────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
 # ── Build / packaging ─────────────────────────────────────────────────────────
 dist/
 build/

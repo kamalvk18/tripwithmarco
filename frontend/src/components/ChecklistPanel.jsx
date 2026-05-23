@@ -10,8 +10,13 @@ const PRIORITY_CLASS = { high: 'text-red-400', normal: 'text-slate-300', low: 't
 async function apiGenerate(tripId, passportCountry) {
   const params = passportCountry ? `?passport_country=${encodeURIComponent(passportCountry)}` : ''
   const res = await fetch(`/api/trips/${tripId}/checklist${params}`, { method: 'POST' })
-  if (!res.ok) throw new Error('Failed to generate checklist')
-  return res.json()  // { items: [...] }
+  if (!res.ok) {
+    // Surface the API's error message if available
+    let detail = `Server error ${res.status}`
+    try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  return res.json()
 }
 
 async function apiToggle(tripId, itemId, completed) {
@@ -34,6 +39,7 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
   const [generating, setGenerating] = useState(false)
   const [passport, setPassport]     = useState('')
   const [showForm, setShowForm]     = useState(false)
+  const [error, setError]           = useState(null)
 
   const done  = items.filter(i => i.completed).length
   const total = items.length
@@ -42,11 +48,14 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
     e.preventDefault()
     setGenerating(true)
     setShowForm(false)
+    setError(null)
     try {
       const res = await apiGenerate(tripId, passport)
       onUpdate?.(res.items)
     } catch (err) {
       console.error(err)
+      setError(err.message ?? 'Something went wrong. Is the API server running?')
+      setShowForm(true)   // re-show form so user can retry
     } finally {
       setGenerating(false)
     }
@@ -88,6 +97,11 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
           {/* Empty state / generate CTA */}
           {items.length === 0 && !generating && (
             <div className="px-5 py-5 text-center">
+              {error && (
+                <div className="mb-4 rounded-lg bg-red-900/30 border border-red-700/40 px-4 py-2.5 text-sm text-red-300 text-left">
+                  ⚠️ {error}
+                </div>
+              )}
               <p className="text-sm text-slate-400 mb-4">
                 Generate a personalised checklist: visa requirements, vaccinations,
                 insurance, documents and kit — specific to {destination}.

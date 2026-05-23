@@ -44,10 +44,14 @@ def list_trips() -> list:
             with open(filepath, "r") as f:
                 trip = json.load(f)
                 trips.append({
-                    "trip_id": trip.get("trip_id"),
+                    "trip_id":    trip.get("trip_id"),
                     "destination": trip.get("destination", "Unknown"),
-                    "dates": trip.get("dates", ""),
-                    "saved_at": trip.get("saved_at", "")
+                    "dates":      trip.get("dates", ""),
+                    "saved_at":   trip.get("saved_at", ""),
+                    "start_date": trip.get("start_date", ""),
+                    "end_date":   trip.get("end_date", ""),
+                    "budget":     trip.get("budget"),
+                    "currency":   trip.get("currency"),
                 })
     
     return trips

@@ -317,26 +317,43 @@ def generate_checklist(destination: str, passport_country: str, start_date: str)
     Categories: visa, health, insurance, documents, kit
     Priorities: high | normal | low
     """
-    prompt = f"""Generate a concise pre-trip checklist for a solo traveller.
+    prompt = f"""Generate a concise, context-aware pre-trip checklist for a solo traveller.
 
 Destination: {destination}
-Passport country: {passport_country or "not specified"}
+Passport / citizenship country: {passport_country or "not specified"}
 Departure date: {start_date or "soon"}
+
+CRITICAL CONTEXT RULES — apply these before generating any item:
+1. DOMESTIC TRAVEL: If the destination country matches the passport/citizenship country (e.g. Indian citizen → Ladakh/India, US citizen → New York, etc.) this is a DOMESTIC trip. For domestic travel:
+   - Do NOT include visa items (no visa needed for domestic travel)
+   - Do NOT suggest getting a local SIM card (they already have one)
+   - Do NOT suggest exchanging currency (they already have local currency)
+   - Do NOT mention passport validity for domestic travel (passport not required)
+   - Do NOT suggest emergency copies of passport for simple domestic trips
+   - Focus instead on: health precautions specific to the region, insurance, offline maps, region-specific kit
+2. INTERNATIONAL TRAVEL: Include visa, passport validity, SIM card, currency, and entry requirement items.
+3. ALTITUDE / TERRAIN: For high-altitude destinations (e.g. Ladakh, Tibet, Nepal, Andes, Alps) always include altitude sickness prevention as HIGH priority.
+4. Be intelligent — don't generate boilerplate that doesn't apply. Each item must be genuinely useful for this specific traveller.
 
 Return ONLY valid JSON — an array of objects, no prose, no markdown fences:
 [
-  {{"category": "visa", "item": "Check visa requirements for {destination}", "priority": "high"}},
+  {{"category": "health", "item": "Consult doctor about altitude sickness medication", "priority": "high"}},
   ...
 ]
 
-Categories to cover (only include relevant items):
-- visa: entry requirements, e-visa links, on-arrival conditions
-- health: vaccinations recommended/required, medication, travel clinic
+Categories (only include relevant ones):
+- visa: entry requirements, e-visa, on-arrival (SKIP for domestic travel)
+- health: vaccinations, altitude sickness, medication, travel clinic
 - insurance: travel insurance, medical evacuation cover
-- documents: passport validity (6 months+), copies, emergency contacts
-- kit: adaptor type, SIM card, offline maps, currency
+- documents: passport validity (international only), copies of essential docs, emergency contacts
+- kit: power adaptor, offline maps, gear specific to destination climate/terrain
 
-Be specific to the destination. Keep each item under 12 words. Return 8-15 items total."""
+Keep each item under 12 words. Return 8-15 items total.
+Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any other value."""
+
+    # Normalise any non-standard priority Haiku might return
+    _PRIORITY_MAP = {"high": "high", "normal": "normal", "low": "low",
+                     "medium": "normal", "moderate": "normal", "critical": "high"}
 
     try:
         response = client.messages.create(
@@ -349,24 +366,34 @@ Be specific to the destination. Keep each item under 12 words. Return 8-15 items
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
         items = json.loads(raw)
-        # Validate structure
+        # Validate and normalise
         validated = []
         for item in items:
             if isinstance(item, dict) and "item" in item:
+                raw_priority = item.get("priority", "normal").lower()
                 validated.append({
                     "category": item.get("category", "documents"),
                     "item": item["item"],
-                    "priority": item.get("priority", "normal"),
+                    "priority": _PRIORITY_MAP.get(raw_priority, "normal"),
                 })
         return validated
     except Exception as exc:
         print(f"generate_checklist error: {exc}")
-        # Return a minimal fallback checklist
-        return [
-            {"category": "documents", "item": "Check passport validity (6+ months)", "priority": "high"},
-            {"category": "insurance", "item": "Purchase travel insurance", "priority": "high"},
-            {"category": "visa", "item": f"Check visa requirements for {destination}", "priority": "high"},
-        ]
+        # Return a minimal fallback checklist (domestic-aware)
+        fallback = [{"category": "insurance", "item": "Purchase travel insurance", "priority": "high"}]
+        if passport_country and destination:
+            # Very rough domestic check — if the passport country name appears in the destination
+            pc = passport_country.lower().strip()
+            dest = destination.lower()
+            is_domestic = pc in dest or dest in pc
+        else:
+            is_domestic = False
+        if not is_domestic:
+            fallback += [
+                {"category": "documents", "item": "Check passport validity (6+ months)", "priority": "high"},
+                {"category": "visa", "item": f"Check visa requirements for {destination}", "priority": "high"},
+            ]
+        return fallback
 
 
 if __name__ == "__main__":

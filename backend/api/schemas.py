@@ -37,6 +37,8 @@ class TripSummary(BaseModel):
 
 class TripDetail(BaseModel):
     """Full trip object including conversation messages."""
+    model_config = {"extra": "allow"}   # pass through any future fields without schema changes
+
     trip_id: str
     destination: str
     dates: str = ""
@@ -48,6 +50,10 @@ class TripDetail(BaseModel):
     budget: float | None = None
     currency: str | None = None
     budget_breakdown: dict[str, Any] | None = None
+    day_overrides: dict[str, Any] = Field(default_factory=dict)
+    spending: list[dict[str, Any]] = Field(default_factory=list)
+    checklist: list[dict[str, Any]] = Field(default_factory=list)
+    email_config: dict[str, Any] = Field(default_factory=dict)
     messages: list[Message] = Field(default_factory=list)
 
 

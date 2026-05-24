@@ -3,7 +3,7 @@ TOOL_DEFINITIONS = [
         "name": "search_hotels",
         "description": """Search for real-time hotel prices at a destination.
         Use when the user asks about accommodation, where to stay, or nightly costs.
-        Also use when building a full budget breakdown that should include lodging.""",
+        When building a budget breakdown, call this once for the main destination only.""",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -27,8 +27,9 @@ TOOL_DEFINITIONS = [
         "name": "search_places",
         "description": """Search for restaurants, attractions, or activities at a destination.
         Use when the user asks where to eat, what to do, or wants specific venue recommendations.
-        Also use proactively when building an itinerary to find real, rated places instead of generic suggestions.
-        query examples: 'traditional restaurants', 'museums', 'hiking trails', 'rooftop bars'""",
+        When building an itinerary, make at most 1-2 calls total — use a broad query like 'top things to do'
+        or 'restaurants and attractions' rather than separate calls per category.
+        query examples: 'top things to do', 'restaurants and attractions', 'hiking trails near city centre'""",
         "input_schema": {
             "type": "object",
             "properties": {

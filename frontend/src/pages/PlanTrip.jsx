@@ -46,9 +46,9 @@ function extractOptions(text) {
   return [...text.matchAll(/\[OPTION:\s*([^\]]+)\]/g)].map(m => m[1].trim())
 }
 
-/** Strip [OPTION: ...] lines from text before displaying. */
+/** Strip [OPTION: ...] markers from text before displaying (handles inline or own-line). */
 function stripOptions(text) {
-  return text.replace(/^\[OPTION:[^\]]*\]\s*$/gim, '').replace(/\n{3,}/g, '\n\n').trim()
+  return text.replace(/\[OPTION:[^\]]*\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
 export default function PlanTrip() {

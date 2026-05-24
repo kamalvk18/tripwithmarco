@@ -21,7 +21,7 @@ from datetime import date, datetime
 import resend
 from dotenv import load_dotenv
 
-from backend.tools.weather import get_weather_forecast, format_weather_for_marco
+from backend.tools.weather import get_weather_forecast
 from backend.db.trip_store import load_trip, list_trips
 
 load_dotenv()
@@ -193,18 +193,37 @@ def send_briefing(trip_id: str, to_email: str) -> bool:
     day_number = (today - start).days + 1
     total_days = (end - start).days + 1
 
-    # Extract today's plan from the itinerary
-    messages   = trip.get("messages", [])
-    itinerary  = next((m["content"] for m in messages if m["role"] == "assistant"), "")
-    day_plan   = _extract_day_section(itinerary, day_number)
+    # Extract today's plan — use the LAST assistant message that has day content,
+    # not the first (which is often Marco's options/clarifying questions).
+    messages        = trip.get("messages", [])
+    assistant_msgs  = [m["content"] for m in messages if m["role"] == "assistant"]
+    itinerary       = next(
+        (c for c in reversed(assistant_msgs) if re.search(r'\bday\s+\d+\b', c, re.IGNORECASE)),
+        assistant_msgs[0] if assistant_msgs else "",
+    )
+    day_plan = _extract_day_section(itinerary, day_number)
     if not day_plan:
         day_plan = "No specific plan found for today."
 
-    # Live weather
+    # Live weather — only today's forecast, not the full 5-day dump
     city = trip.get("city") or trip.get("destination", "")
+    weather_text = ""
     try:
-        weather_raw  = get_weather_forecast(city)
-        weather_text = format_weather_for_marco(weather_raw)
+        weather_raw   = get_weather_forecast(city)
+        today_str     = today.isoformat()
+        today_weather = next(
+            (d for d in weather_raw.get("forecast", []) if d["date"] == today_str),
+            None,
+        )
+        if today_weather:
+            rain = " ☔ Rain expected" if today_weather["rain_expected"] else ""
+            weather_text = (
+                f"**{today_weather['condition']}**{rain}  \n"
+                f"🌡 {today_weather['min_temp']}°C – {today_weather['max_temp']}°C "
+                f"(avg {today_weather['avg_temp']}°C)"
+            )
+        elif "error" not in weather_raw:
+            weather_text = "Weather data not available for today."
     except Exception:
         weather_text = ""
 

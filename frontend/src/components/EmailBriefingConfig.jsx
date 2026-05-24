@@ -65,7 +65,7 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
     setSending(true)
     const ok = await apiSendNow(tripId, email)
     setSending(false)
-    showToast(ok ? `Test briefing sent to ${email}!` : 'Send failed — check RESEND_API_KEY in .env.', ok)
+    showToast(ok ? `Test briefing sent to ${email}!` : 'Send failed — email service may not be configured on the server.', ok)
   }
 
   const isConfigured = !!emailConfig.email
@@ -96,7 +96,6 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
         <div className="border-t border-[#2e3248] px-5 py-5 space-y-4">
           <p className="text-sm text-slate-400">
             Marco sends a morning email each trip day: today's weather, your plan, and remaining budget.
-            Needs a <code className="text-indigo-300 text-xs bg-indigo-900/30 px-1 rounded">RESEND_API_KEY</code> in <code className="text-indigo-300 text-xs bg-indigo-900/30 px-1 rounded">.env</code>.
           </p>
 
           <form onSubmit={handleSave} className="space-y-3">
@@ -123,6 +122,7 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
                   className="w-full rounded-lg bg-[#22263a] border border-[#2e3248] text-slate-200 px-3 py-2
                     text-sm focus:outline-none focus:border-indigo-500"
                 />
+                <p className="text-xs text-slate-500 mt-1">Actual delivery depends on the server's cron schedule.</p>
               </div>
               <div className="flex items-end pb-0.5">
                 <label className="flex items-center gap-2 cursor-pointer select-none">

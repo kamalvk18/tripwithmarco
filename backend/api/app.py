@@ -16,6 +16,7 @@ Endpoints:
     PATCH /api/trips/{id}/checklist/{id}  → toggle checklist item
     POST /api/trips/{id}/email-config     → configure daily briefing
     POST /api/trips/{id}/send-briefing    → send briefing immediately (test)
+    POST /api/send-briefings              → cron trigger: send all active briefings
     POST /api/chat/stream                 → SSE streaming chat
     POST /api/chat                        → non-streaming chat
     GET  /docs                            → Swagger UI
@@ -27,7 +28,7 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -56,8 +57,8 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         if not auth_user or not auth_pass:
             return await call_next(request)
 
-        # /health must stay open so Fly's health checks pass without credentials
-        if request.url.path == "/health":
+        # These paths must stay open (health checks + external cron trigger)
+        if request.url.path in ("/health", "/api/send-briefings"):
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization", "")
@@ -81,11 +82,8 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the email scheduler on startup; stop it on shutdown."""
-    from backend.email.scheduler import start_scheduler, stop_scheduler
-    start_scheduler()
+    """App lifespan — email briefings are now triggered externally via /api/send-briefings."""
     yield
-    stop_scheduler()
 
 
 app = FastAPI(
@@ -122,6 +120,26 @@ app.include_router(chat_router, prefix="/api")
 def health():
     """Liveness check — returns 200 when the server is up."""
     return {"status": "ok"}
+
+
+@app.post("/api/send-briefings", tags=["meta"])
+def send_briefings(request: Request):
+    """
+    Trigger daily email briefings for all active trips.
+
+    Called by an external cron service (e.g. cron-job.org) once per day.
+    Protected by CRON_SECRET env var — pass it as X-Cron-Secret header.
+    If CRON_SECRET is not set, the endpoint is open (safe for local dev).
+    """
+    cron_secret = os.getenv("CRON_SECRET", "")
+    if cron_secret:
+        provided = request.headers.get("X-Cron-Secret", "")
+        if not secrets.compare_digest(provided.encode(), cron_secret.encode()):
+            raise HTTPException(status_code=403, detail="Invalid or missing X-Cron-Secret")
+
+    from backend.email.briefing import send_all_active_briefings
+    sent = send_all_active_briefings()
+    return {"ok": True, "sent": sent}
 
 
 # ── React SPA static files (production only) ──────────────────────────────────

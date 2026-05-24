@@ -174,7 +174,7 @@ def set_email_config(trip_id: str, body: EmailConfigRequest):
 
 @router.post("/{trip_id}/send-briefing", response_model=OkResponse)
 def send_briefing_now(trip_id: str, to_email: str = Body(..., embed=True)):
-    """Send today's briefing immediately (for testing)."""
+    """Send today's briefing immediately."""
     from backend.email.briefing import send_briefing
     success = send_briefing(trip_id, to_email)
     if not success:

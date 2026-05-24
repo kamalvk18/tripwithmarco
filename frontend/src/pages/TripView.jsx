@@ -57,8 +57,20 @@ export default function TripView() {
     )
   }
 
-  const messages  = tripData.messages ?? []
-  const itinerary = messages.find(m => m.role === 'assistant')?.content ?? ''
+  const messages     = tripData.messages ?? []
+  const assistantMsgs = messages.filter(m => m.role === 'assistant')
+  // Use the LAST assistant message that contains day-by-day content.
+  // In a multi-turn planning conversation the first assistant message is often
+  // Marco asking clarifying questions / presenting options — not the itinerary.
+  const rawItinerary = (
+    [...assistantMsgs].reverse().find(m => /\bday\s+\d+\b/i.test(m.content))
+    ?? assistantMsgs[0]
+  )?.content ?? ''
+  // Strip any [OPTION: ...] markers left over from the planning conversation
+  const itinerary = rawItinerary
+    .replace(/\[OPTION:[^\]]*\]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
   const days      = extractAllDays(itinerary)
   const { status, label, dayNum } = tripStatus(tripData)
 

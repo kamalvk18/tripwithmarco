@@ -21,7 +21,6 @@ from datetime import date, datetime
 import resend
 from dotenv import load_dotenv
 
-from backend.agents.planning_agent import generate_checklist
 from backend.tools.weather import get_weather_forecast, format_weather_for_marco
 from backend.db.trip_store import load_trip, list_trips
 

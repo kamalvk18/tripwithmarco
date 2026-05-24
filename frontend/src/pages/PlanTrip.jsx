@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { Plane, Send } from 'lucide-react'
+import { Plane, Send, Save } from 'lucide-react'
 import { extractInfo, saveTrip } from '@/lib/api'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { Button } from '@/components/ui/Button'
@@ -38,7 +38,9 @@ function Select({ children, ...props }) {
 
 /** Returns true if the message looks like a complete day-by-day itinerary. */
 function hasFullItinerary(text) {
-  return /\bday\s+1\b/i.test(text)
+  // Require BOTH Day 1 and Day 2 to be present — guards against false positives
+  // where Marco mentions "Day 1" in passing while still asking clarifying questions.
+  return /\bday\s+1\b/i.test(text) && /\bday\s+2\b/i.test(text)
 }
 
 /** Extract [OPTION: label] markers from Marco's response. */
@@ -69,12 +71,14 @@ export default function PlanTrip() {
   })
 
   // Conversation state
-  const [started, setStarted]          = useState(false)
-  const [messages, setMessages]        = useState([])
-  const [streamingText, setStreamText] = useState('')
+  const [started, setStarted]           = useState(false)
+  const [messages, setMessages]         = useState([])
+  const [streamingText, setStreamText]  = useState('')
   const [quickReplies, setQuickReplies] = useState([])
-  const [input, setInput]              = useState('')
-  const [saving, setSaving]            = useState(false)
+  const [input, setInput]               = useState('')
+  const [saving, setSaving]             = useState(false)
+  // True once Marco has written a full day-by-day itinerary — shows the Save button
+  const [itineraryReady, setItineraryReady] = useState(false)
   const responseRef = useRef('')
   const bottomRef   = useRef(null)
   const inputRef    = useRef(null)
@@ -134,7 +138,7 @@ export default function PlanTrip() {
         responseRef.current += chunk
         setStreamText(responseRef.current)
       },
-      onDone: async () => {
+      onDone: () => {
         const assistantMsg = { role: 'assistant', content: responseRef.current }
         const finalMessages = [...withUser, assistantMsg]
         setMessages(finalMessages)
@@ -143,9 +147,10 @@ export default function PlanTrip() {
         // Surface any [OPTION: ...] choices as quick-reply buttons
         setQuickReplies(extractOptions(responseRef.current))
 
-        // Auto-save + navigate once a full itinerary appears
+        // Show the Save button once Marco has produced a full day-by-day itinerary.
+        // We don't auto-save — Marco might still be offering tweaks / options.
         if (hasFullItinerary(responseRef.current)) {
-          await saveAndNavigate(finalMessages)
+          setItineraryReady(true)
         }
       },
     })
@@ -437,6 +442,24 @@ export default function PlanTrip() {
 
         <div ref={bottomRef} />
       </div>
+
+      {/* Save Trip banner — appears once Marco has written a full itinerary */}
+      {itineraryReady && !saving && (
+        <div className="sticky bottom-20 mb-3">
+          <button
+            type="button"
+            onClick={() => saveAndNavigate(messages)}
+            className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500
+              text-white font-semibold text-sm transition-colors
+              flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40"
+          >
+            <Save size={16} /> Save Trip &amp; Open Itinerary
+          </button>
+          <p className="text-xs text-slate-500 text-center mt-1.5">
+            Happy with the plan? Save it — or keep chatting to tweak things first.
+          </p>
+        </div>
+      )}
 
       {/* Input — stays at bottom, hidden while saving */}
       {!saving && (

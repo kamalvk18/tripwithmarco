@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { Plane, Send, Save } from 'lucide-react'
-import { extractInfo, saveTrip } from '@/lib/api'
+import { extractInfo, saveTrip, updateTrip } from '@/lib/api'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -77,11 +77,14 @@ export default function PlanTrip() {
   const [quickReplies, setQuickReplies] = useState([])
   const [input, setInput]               = useState('')
   const [saving, setSaving]             = useState(false)
+  const [draftSaved, setDraftSaved]     = useState(false)
   // True once Marco has written a full day-by-day itinerary — shows the Save button
   const [itineraryReady, setItineraryReady] = useState(false)
-  const responseRef = useRef('')
-  const bottomRef   = useRef(null)
-  const inputRef    = useRef(null)
+  const responseRef  = useRef('')
+  const draftIdRef   = useRef(null)   // persists across renders without causing re-renders
+  const draftMetaRef = useRef(null)   // base trip metadata for updates
+  const bottomRef    = useRef(null)
+  const inputRef     = useRef(null)
 
   // Auto-scroll to bottom as Marco types
   useEffect(() => {
@@ -105,6 +108,22 @@ export default function PlanTrip() {
         ? f.travelStyles.filter(s => s !== style)
         : [...f.travelStyles, style],
     }))
+  }
+
+  /** Build minimal trip metadata from the form — used for draft saves without Haiku extraction. */
+  function buildDraftMeta() {
+    return {
+      destination: form.destination,
+      dates: `${form.startDate} to ${form.endDate}`,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      city: form.destination,
+      country_code: '',
+      budget: parseFloat(form.budget) || 0,
+      currency: form.currency,
+      budget_breakdown: {},
+      day_overrides: {},
+    }
   }
 
   function buildPrompt() {
@@ -148,9 +167,26 @@ export default function PlanTrip() {
         setQuickReplies(extractOptions(responseRef.current))
 
         // Show the Save button once Marco has produced a full day-by-day itinerary.
-        // We don't auto-save — Marco might still be offering tweaks / options.
         if (hasFullItinerary(responseRef.current)) {
           setItineraryReady(true)
+        }
+
+        // Auto-persist as draft after every turn (fire-and-forget — onDone isn't
+        // awaited by useSSEChat so we use .then() to keep intent clear).
+        const meta = draftMetaRef.current ?? buildDraftMeta()
+        const tripWithMessages = { ...meta, messages: finalMessages }
+
+        if (!draftIdRef.current) {
+          saveTrip(tripWithMessages)
+            .then(id => {
+              draftIdRef.current   = id
+              draftMetaRef.current = meta
+              setDraftSaved(true)
+            })
+            .catch(err => console.warn('Draft auto-save failed:', err))
+        } else {
+          updateTrip(draftIdRef.current, tripWithMessages)
+            .catch(err => console.warn('Draft auto-update failed:', err))
         }
       },
     })
@@ -160,7 +196,9 @@ export default function PlanTrip() {
     setSaving(true)
     try {
       const extracted = await extractInfo(msgs, form.currency)
+      const base = draftMetaRef.current ?? buildDraftMeta()
       const tripData = {
+        ...base,
         destination: extracted.destination || form.destination,
         dates: `${form.startDate} to ${form.endDate}`,
         start_date: extracted.start_date || form.startDate,
@@ -173,10 +211,18 @@ export default function PlanTrip() {
         messages: msgs,
         day_overrides: {},
       }
-      const tripId = await saveTrip(tripData)
-      navigate(`/trips/${tripId}`)
+      if (draftIdRef.current) {
+        // Update the existing draft with full extracted metadata, then navigate to it
+        await updateTrip(draftIdRef.current, tripData)
+        navigate(`/trips/${draftIdRef.current}`)
+      } else {
+        const tripId = await saveTrip(tripData)
+        navigate(`/trips/${tripId}`)
+      }
     } catch {
-      navigate('/')
+      // If extraction/update failed, still navigate to the draft if we have one
+      if (draftIdRef.current) navigate(`/trips/${draftIdRef.current}`)
+      else navigate('/')
     }
   }
 
@@ -341,12 +387,17 @@ export default function PlanTrip() {
         <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
           <Plane className="text-indigo-400" size={18} />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-bold text-slate-100">
             Planning: {form.destination}
           </h1>
           <p className="text-slate-500 text-xs">{form.startDate} → {form.endDate} · {form.budget} {form.currency}</p>
         </div>
+        {draftSaved && (
+          <span className="text-xs text-slate-500 flex items-center gap-1">
+            <span className="text-emerald-500">✓</span> Draft saved
+          </span>
+        )}
       </div>
 
       {/* Messages */}

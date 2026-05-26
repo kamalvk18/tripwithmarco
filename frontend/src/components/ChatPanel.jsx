@@ -5,9 +5,14 @@ import { useSSEChat } from '@/hooks/useSSEChat'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
 
-/** Strip [OPTION: ...] markers — they're planning-phase UI, not content. */
+/** Strip [OPTION: ...] markers from displayed text. */
 function stripOptions(text) {
   return text.replace(/\[OPTION:[^\]]*\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/** Extract [OPTION: label] markers from Marco's response as an array of strings. */
+function extractOptions(text) {
+  return [...text.matchAll(/\[OPTION:\s*([^\]]+)\]/g)].map(m => m[1].trim())
 }
 
 function Bubble({ role, content, isStreaming }) {
@@ -50,12 +55,13 @@ function Bubble({ role, content, isStreaming }) {
  *   companion  — bool, enables companion mode
  *   onSave     — called with (updatedMessages) after each assistant response
  */
-export function ChatPanel({ messages, tripData, companion = false, onSave }) {
+export function ChatPanel({ messages, tripData, companion = false, weatherText = null, onSave }) {
   const { streaming, toolStatus, send } = useSSEChat()
   const [expanded, setExpanded]           = useState(false)
   const [chatMessages, setChatMessages]   = useState([])   // new turns added in TripView
   const [input, setInput]                 = useState('')
   const [streamingText, setStreamingText] = useState('')
+  const [quickReplies, setQuickReplies]   = useState([])
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
 
@@ -79,9 +85,9 @@ export function ChatPanel({ messages, tripData, companion = false, onSave }) {
     }
   }, [expanded, streaming])
 
-  async function handleSend(e) {
+  async function handleSend(e, overrideText) {
     e.preventDefault()
-    const text = input.trim()
+    const text = (overrideText ?? input).trim()
     if (!text || streaming) return
 
     const userMsg = { role: 'user', content: text }
@@ -89,14 +95,21 @@ export function ChatPanel({ messages, tripData, companion = false, onSave }) {
     setChatMessages(newChat)
     setInput('')
     setStreamingText('')
+    setQuickReplies([])
 
     // Full context = historical trip messages + new ask-marco turns
     const fullHistory = [...messages, ...newChat]
     let accumulated = ''
 
+    // Inject cached weather into tripData so the backend skips its own fetch.
+    // Falls back to null → backend fetches live (graceful degradation).
+    const tripDataWithWeather = weatherText
+      ? { ...tripData, weather_text: weatherText }
+      : tripData
+
     await send({
       messages: fullHistory,
-      tripData,
+      tripData: tripDataWithWeather,
       companionMode: companion,
       onChunk: (chunk) => {
         accumulated += chunk
@@ -107,6 +120,7 @@ export function ChatPanel({ messages, tripData, companion = false, onSave }) {
         const updated = [...newChat, assistantMsg]
         setChatMessages(updated)
         setStreamingText('')
+        setQuickReplies(extractOptions(accumulated))
         // Persist the full updated history back to the trip
         onSave?.([...messages, ...updated])
       },
@@ -164,6 +178,24 @@ export function ChatPanel({ messages, tripData, companion = false, onSave }) {
             {allDisplay.map((msg, i) => (
               <Bubble key={i} role={msg.role} content={msg.content} />
             ))}
+
+            {/* Quick-reply option buttons — shown after Marco's last message */}
+            {quickReplies.length > 0 && !streaming && (
+              <div className="flex flex-wrap gap-2 pl-10">
+                {quickReplies.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={(e) => handleSend(e, opt)}
+                    className="px-4 py-2 rounded-full text-sm border border-indigo-600/60
+                      bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/40
+                      hover:border-indigo-500 transition-colors cursor-pointer"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {toolStatus && (
               <div className="flex items-center gap-2 text-xs text-indigo-300 bg-indigo-900/20 border border-indigo-800/40 rounded-lg px-3 py-2">

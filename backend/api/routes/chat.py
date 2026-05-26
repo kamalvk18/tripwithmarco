@@ -13,7 +13,7 @@ SSE format:
 
 import json
 import queue
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 
@@ -21,8 +21,9 @@ from backend.agents.planning_agent import (
     chat,
     extract_trip_details,
     extract_itinerary,
-    extract_budget_breakdown,
+    extract_structured_itinerary,
 )
+from backend.tools.weather import get_weather_forecast, format_weather_for_marco
 from backend.api.schemas import ChatRequest, ExtractRequest, ExtractResponse
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -115,14 +116,34 @@ async def chat_sync(req: ChatRequest):
     return {"response": full_text}
 
 
+@router.get("/weather")
+async def get_weather(city: str, country_code: str = ""):
+    """
+    Fetch and format a 5-day weather forecast for a given city.
+
+    Used by the React frontend to pre-fetch weather once and cache it
+    client-side (1-hour TTL), so companion-mode chat calls don't each
+    trigger a fresh OpenWeather request.
+
+    Returns: { "weather_text": "<formatted string for Marco>" }
+    """
+    try:
+        data = get_weather_forecast(city, country_code)
+        text = format_weather_for_marco(data)
+        return {"weather_text": text}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Weather fetch failed: {exc}")
+
+
 @router.post("/extract", response_model=ExtractResponse)
 async def extract_info(req: ExtractRequest):
     """
     Run post-generation extraction on a completed conversation.
 
-    Makes two Claude Haiku calls (~200 tokens each):
-      1. Extract structured trip metadata (destination, city, dates, country code)
-      2. Extract budget breakdown per category from the itinerary text
+    Makes two Claude Haiku calls:
+      1. Structured trip metadata (destination, city, dates, country code)
+      2. Structured itinerary: day-by-day plan + budget breakdown via tool_choice
+         — forces an exact JSON schema, no regex required.
 
     Call this after the first itinerary response to populate trip metadata
     before saving to the trip store.
@@ -130,5 +151,13 @@ async def extract_info(req: ExtractRequest):
     raw_messages = [m.model_dump() for m in req.messages]
     extracted = extract_trip_details(raw_messages)
     itinerary = extract_itinerary(raw_messages)
-    budget_breakdown = extract_budget_breakdown(itinerary, currency=req.currency)
-    return ExtractResponse(**{**extracted, "budget_breakdown": budget_breakdown})
+    structured = extract_structured_itinerary(itinerary, currency=req.currency)
+    return ExtractResponse(
+        destination=extracted.get("destination", ""),
+        city=extracted.get("city", ""),
+        country_code=extracted.get("country_code", ""),
+        start_date=extracted.get("start_date", ""),
+        end_date=extracted.get("end_date", ""),
+        days=structured.get("days", []),
+        budget_breakdown=structured.get("budget_breakdown", {}),
+    )

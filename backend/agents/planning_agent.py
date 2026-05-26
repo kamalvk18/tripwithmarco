@@ -60,38 +60,94 @@ No markdown, no explanation. JSON object only.""",
         return {}
 
 
-def extract_budget_breakdown(itinerary: str, currency: str = "EUR") -> dict:
+def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
     """
-    Use Claude Haiku to extract a structured cost breakdown from the itinerary text.
-    Returns a dict with estimated costs per category, or {} on failure.
+    Use Haiku with tool_choice to extract a typed day-by-day plan + budget in one call.
+
+    Forcing tool use guarantees the model returns the exact schema — no JSON
+    parsing fragility, no regex, no missed fields.
+
+    Returns {"days": [...], "budget_breakdown": {...}} or {} on failure.
     """
     if not itinerary:
         return {}
 
+    _tool = {
+        "name": "save_itinerary",
+        "description": "Persist the structured itinerary with day plans and budget breakdown.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "array",
+                    "description": "Every day section from the itinerary, in order.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "day": {
+                                "type": "integer",
+                                "description": (
+                                    "Day number as an integer. "
+                                    "For ranges like 'Day 5-6' use the first number (5)."
+                                ),
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": (
+                                    "Full day heading exactly as written, e.g. "
+                                    "'Day 1 (May 28) — ARRIVAL & GENTLE START'."
+                                ),
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Complete text for this day (activities, meals, tips, etc.).",
+                            },
+                        },
+                        "required": ["day", "title", "content"],
+                    },
+                },
+                "budget_breakdown": {
+                    "type": "object",
+                    "description": f"Estimated total costs in {currency} for the whole trip.",
+                    "properties": {
+                        "flights": {
+                            "type": ["number", "null"],
+                            "description": (
+                                "Total flight costs. Use 0 if flights are mentioned but free/included; "
+                                "null only if flights are completely absent from the plan."
+                            ),
+                        },
+                        "accommodation": {"type": ["number", "null"], "description": "Total accommodation costs."},
+                        "food": {"type": ["number", "null"], "description": "Total food & dining costs."},
+                        "activities": {"type": ["number", "null"], "description": "Total activity & entrance-fee costs."},
+                        "transport": {"type": ["number", "null"], "description": "Local transport costs (taxis, trains, buses)."},
+                        "total_estimated": {"type": ["number", "null"], "description": "Sum of all estimated costs."},
+                    },
+                },
+            },
+            "required": ["days", "budget_breakdown"],
+        },
+    }
+
     try:
         response = client.messages.create(
             model=HAIKU_MODEL,
-            max_tokens=EXTRACTION_MAX_TOKENS,
-            system=f"""Extract an estimated budget breakdown from a travel itinerary.
-Return ONLY a JSON object with numeric values in {currency}:
-{{
-  "flights": <number or null>,
-  "accommodation": <number or null>,
-  "food": <number or null>,
-  "activities": <number or null>,
-  "transport": <number or null>,
-  "total_estimated": <number or null>
-}}
-Use null when there is no mention of that category.
-No markdown, no explanation. JSON object only.""",
-            messages=[
-                {"role": "user", "content": f"Extract budget breakdown:\n\n{itinerary[:3000]}"}
-            ],
+            max_tokens=8096,
+            tools=[_tool],
+            tool_choice={"type": "tool", "name": "save_itinerary"},
+            system=(
+                f"You are a travel itinerary parser. "
+                f"Extract every day section and the budget estimate (in {currency}) "
+                f"from the itinerary below. Preserve the full content for each day."
+            ),
+            messages=[{"role": "user", "content": itinerary[:8000]}],
         )
-        raw = response.content[0].text.strip().strip("```json").strip("```").strip()
-        return json.loads(raw)
-    except Exception:
-        return {}
+        for block in response.content:
+            if hasattr(block, "type") and block.type == "tool_use":
+                return block.input
+    except Exception as exc:
+        print(f"extract_structured_itinerary error: {exc}")
+    return {}
 
 
 def extract_itinerary(messages: list) -> str:
@@ -115,12 +171,15 @@ def extract_day_section(itinerary: str, day_number: int) -> str:
 
 def extract_all_days(itinerary: str) -> list[dict]:
     """Split itinerary into individual day sections for structured display."""
-    # A real day heading line must end with either:
-    #   a separator (—, -, –, :) followed by a title, OR
-    #   end of line (for bare "Day N" or "**Day N**" headings).
-    # This prevents matching inline commentary like "Day 1 is REST DAY..." or "Day 7 feels..."
+    # Matches day headings in any format Marco produces, e.g.:
+    #   ### **DAY 1 (May 28) — ARRIVAL & GENTLE START**
+    #   ### **DAY 5-6 (June 1-2) — HAMPI ESCAPE**
+    #   **Day 3:** Culture day
+    # Key additions over the original pattern:
+    #   (?:-\d+)?       — handles day ranges like "5-6"
+    #   (?:\s*\([^)]*\))?  — handles parenthetical dates like "(May 28)"
     heading_pattern = re.compile(
-        r'(?im)^([ \t]*(?:#{1,3}[ \t]*)?\*{0,2}(?:DAY|Day)[ \t]+(\d+)(?:\*{0,2})?[ \t]*(?:[-—–:][^\n]*)?)$'
+        r'(?im)^([ \t]*(?:#{1,3}[ \t]*)?\*{0,2}(?:DAY|Day)[ \t]+(\d+)(?:-\d+)?(?:\*{0,2})?(?:\s*\([^)]*\))?[ \t]*(?:[-—–:][^\n]*)?)$'
     )
     matches = list(heading_pattern.finditer(itinerary))
     if not matches:
@@ -270,12 +329,13 @@ def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, o
             itinerary = extract_itinerary(trip_data.get("messages", []))
             today_plan = extract_day_section(itinerary, day_number)
 
-            # Pre-fetch weather so it's guaranteed in context.
-            # city → country_code is optional, destination is the last resort.
+            # Use pre-fetched weather injected by the frontend (cached, 1-hour TTL).
+            # Fall back to a live fetch only when the frontend didn't supply it
+            # (e.g. old Streamlit client, direct API calls, tests).
             city = trip_data.get("city") or trip_data.get("destination", "")
             country_code = trip_data.get("country_code", "")
-            weather_text = ""
-            if city:
+            weather_text = trip_data.get("weather_text", "")
+            if not weather_text and city:
                 try:
                     weather_data = get_weather_forecast(city, country_code)
                     weather_text = format_weather_for_marco(weather_data)

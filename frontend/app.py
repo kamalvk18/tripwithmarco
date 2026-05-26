@@ -62,6 +62,76 @@ def clear_plan_state():
         st.session_state.pop(key, None)
     st.session_state.messages = []
 
+
+def _calc_day_date(start_date_str: str, day_num: int) -> str:
+    """Return a short date string for a given trip day, e.g. 'Fri, May 30'."""
+    try:
+        start = date.fromisoformat(start_date_str)
+        return (start + timedelta(days=day_num - 1)).strftime("%a, %b %d")
+    except Exception:
+        return ""
+
+
+def _extract_day_theme(title: str) -> str:
+    """Strip the 'Day N (date) —' prefix and return just the theme name."""
+    cleaned = re.sub(r'(?i)^day\s+\d+(?:-\d+)?(?:\s*\([^)]*\))?\s*', '', title).strip()
+    return re.sub(r'^[—\-–:]+\s*', '', cleaned).strip() or title
+
+
+def _pre_itinerary_messages(messages: list) -> list:
+    """
+    Return the planning conversation up to (not including) the final itinerary.
+
+    Trips can be planned through multi-turn chat before Marco generates the
+    full day-by-day plan.  Keeping that context lets 'Regenerate Plan' work
+    from the same conversation instead of sending Marco a single vague message
+    and making him ask clarifying questions all over again.
+    """
+    for i, m in enumerate(messages):
+        content_str = str(m.get("content", "")).lower()
+        is_itinerary = (
+            m.get("role") == "assistant"
+            and (
+                "day 1" in content_str
+                or "day one" in content_str
+                # Multi-day plan without explicit "Day 1" heading
+                or ("day 2" in content_str and "day 3" in content_str)
+            )
+        )
+        if is_itinerary:
+            pre = messages[:i]
+            # Trim trailing assistant messages so we always end on a user turn
+            while pre and pre[-1].get("role") != "user":
+                pre = pre[:-1]
+            if pre:
+                return pre
+    # Fallback: first user message found
+    for m in messages:
+        if m.get("role") == "user":
+            return [m]
+    return []
+
+
+def _build_regen_prompt(trip_data: dict) -> str:
+    """
+    Build a fresh planning prompt from stored trip metadata.
+    Used as a last-resort fallback when no conversation history is available.
+    """
+    dest     = trip_data.get("destination", "my destination")
+    start    = trip_data.get("start_date", "")
+    end      = trip_data.get("end_date", "")
+    budget   = trip_data.get("budget")
+    currency = trip_data.get("currency", "EUR")
+
+    prompt = f"Please generate a complete day-by-day itinerary for {dest}"
+    if start and end:
+        prompt += f" from {start} to {end}"
+    if budget:
+        prompt += f". My total budget is {currency} {budget:,.0f}"
+    prompt += ". Include recommendations for accommodation, food, activities, and transport."
+    return prompt
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## ✈️ Trip Companion")
@@ -338,44 +408,54 @@ elif st.session_state.view_mode == "trip":
     total_budget = trip_data.get("budget")
     currency = trip_data.get("currency", "EUR")
 
-    if total_budget or breakdown:
-        with st.expander("💰 Budget Overview", expanded=False):
-            categories = {
-                "flights": "✈️ Flights",
-                "accommodation": "🏨 Accommodation",
-                "food": "🍽️ Food",
-                "activities": "🎒 Activities",
-                "transport": "🚌 Local Transport",
-            }
-            visible = {k: v for k, v in breakdown.items() if k in categories and v}
-            if visible:
-                cols = st.columns(len(visible))
-                for col, (key, label) in zip(cols, ((k, categories[k]) for k in visible)):
-                    col.metric(label, f"{currency} {visible[key]:,.0f}")
+    _BUDGET_ROWS = [
+        ("flights",       "✈️", "Flights"),
+        ("accommodation", "🏨", "Accommodation"),
+        ("food",          "🍽️", "Food"),
+        ("activities",    "🎒", "Activities"),
+        ("transport",     "🚌", "Transport"),
+    ]
 
-            total_estimated = breakdown.get("total_estimated")
-            row = st.columns(2)
+    if total_budget or breakdown:
+        total_estimated = breakdown.get("total_estimated") or 0
+        # Normalise progress-bar lengths against whichever is larger
+        bar_ref = max(total_estimated, total_budget or 0) or 1
+
+        with st.container(border=True):
+            st.markdown("##### 💰 Budget Estimate")
+            for key, icon, label in _BUDGET_ROWS:
+                amount = breakdown.get(key) or 0   # null → 0
+                lc, rc = st.columns([5, 1])
+                lc.caption(f"{icon} {label}")
+                rc.caption(f"**{currency} {amount:,.0f}**")
+                st.progress(min(amount / bar_ref, 1.0) if bar_ref > 0 else 0.0)
+
+            st.divider()
+            fc1, fc2 = st.columns(2)
+            fc1.metric("Total estimate", f"{currency} {total_estimated:,.0f}" if total_estimated else "—")
             if total_budget:
-                row[0].metric("Total Budget", f"{currency} {total_budget:,.0f}")
-            if total_estimated:
-                delta = total_budget - total_estimated if total_budget else None
-                delta_str = f"{currency} {abs(delta):,.0f} {'under' if delta >= 0 else 'over'}" if delta is not None else None
-                row[1].metric("Marco's Estimate", f"{currency} {total_estimated:,.0f}",
-                              delta=delta_str,
-                              delta_color="normal" if not delta or delta >= 0 else "inverse")
+                delta = (total_budget - total_estimated) if total_estimated else None
+                delta_str = (
+                    f"{currency} {abs(delta):,.0f} {'under' if delta >= 0 else 'over'}"
+                    if delta is not None else None
+                )
+                fc2.metric(
+                    "Your budget", f"{currency} {total_budget:,.0f}",
+                    delta=delta_str,
+                    delta_color="normal" if not delta or delta >= 0 else "inverse",
+                )
                 if delta is not None and delta < 0:
-                    overage = abs(delta)
                     st.warning(
-                        f"⚠️ Marco's estimate is **{currency} {overage:,.0f} over your budget**. "
-                        f"Open **Ask Marco** below and ask him to find cheaper flights or hotels."
+                        f"⚠️ Marco's estimate is **{currency} {abs(delta):,.0f} over budget**. "
+                        f"Ask Marco below to find cheaper options."
                     )
-            elif not visible:
+            if not breakdown:
                 st.caption("Budget breakdown will appear after your itinerary is generated.")
 
     st.divider()
 
-    # ── Generate itinerary (fresh plan from form) ─────────────────────────────
-    if not st.session_state.get("itinerary_generated", True) and len(messages) == 1:
+    # ── Generate / regenerate itinerary ──────────────────────────────────────
+    if not st.session_state.get("itinerary_generated", True):
         tool_status = st.empty()
         with st.chat_message("assistant", avatar="🧭"):
             response = st.write_stream(api.chat_stream(
@@ -389,7 +469,6 @@ elif st.session_state.view_mode == "trip":
         st.session_state.messages = messages
         st.session_state.itinerary_generated = True
 
-        # Auto-extract details + budget breakdown via a single API call (2 Haiku calls server-side)
         with st.spinner("Saving your trip..."):
             info = api.extract_info(messages, currency=trip_data.get("currency", "EUR"))
 
@@ -402,29 +481,69 @@ elif st.session_state.view_mode == "trip":
             "end_date": info.get("end_date") or trip_data.get("end_date", ""),
             "dates": trip_data.get("dates", ""),
             "messages": messages,
+            "days": info.get("days", []),
             "budget_breakdown": info.get("budget_breakdown", {}),
+            "day_overrides": {},   # clear weather rebuilds on full regeneration
         }
-        trip_id = save_trip(merged)
-        st.session_state.active_trip_id = trip_id
-        st.session_state.trip_data = load_trip(trip_id)
+
+        existing_id = st.session_state.get("active_trip_id")
+        if existing_id:
+            # Regeneration — update in place, don't create a duplicate trip
+            update_trip(existing_id, {**merged, "trip_id": existing_id})
+            st.session_state.trip_data = load_trip(existing_id)
+        else:
+            # Brand-new trip from the planning form
+            trip_id = save_trip(merged)
+            st.session_state.active_trip_id = trip_id
+            st.session_state.trip_data = load_trip(trip_id)
         st.rerun()
 
     # ── Day-by-day itinerary ──────────────────────────────────────────────────
     itinerary = extract_itinerary(messages)
-    days = extract_all_days(itinerary)
+    # Prefer structured days stored at generation time; fall back to regex for old trips.
+    days = trip_data.get("days") or extract_all_days(itinerary)
     day_overrides = trip_data.get("day_overrides") or {}
+    start_date_str = trip_data.get("start_date", "")
 
     if days:
         for day_data in days:
-            is_today = (status == "active" and day_data["day"] == extra)
-            has_override = str(day_data["day"]) in day_overrides
-            label = day_data["title"]
+            day_num    = day_data["day"]
+            is_today   = status == "active" and day_num == extra
+            is_past    = status == "active" and day_num < extra
+            has_override = str(day_num) in day_overrides
+            content    = day_overrides.get(str(day_num), day_data["content"])
+            theme      = _extract_day_theme(day_data["title"])
+            day_date   = _calc_day_date(start_date_str, day_num)
+            date_badge = f"  ·  {day_date}" if day_date else ""
+
             if is_today:
-                label = f"📍 {label}  ← today"
-            if has_override:
-                label += "  🔄 rebuilt"
-            with st.expander(label, expanded=is_today):
-                st.markdown(day_overrides.get(str(day_data["day"]), day_data["content"]))
+                # ── TODAY card — always open, visually prominent ──────────────
+                with st.container(border=True):
+                    hc1, hc2 = st.columns([6, 1])
+                    with hc1:
+                        st.markdown(f"📍 **TODAY · Day {day_num}**{date_badge}")
+                        st.markdown(f"### {theme}")
+                    with hc2:
+                        st.write("")   # vertical spacer so button aligns to right
+                        if st.button(
+                            "🔄 Rebuild",
+                            key=f"rebuild_card_{day_num}",
+                            use_container_width=True,
+                            help="Regenerate today's plan around current weather",
+                        ):
+                            st.session_state["rebuilding_day"] = day_num
+                            st.rerun()
+                    if has_override:
+                        st.caption("🔄 Rebuilt around today's weather")
+                    st.divider()
+                    st.markdown(content)
+            else:
+                # ── Past / future days — collapsible ─────────────────────────
+                check = "✅ " if is_past else ""
+                rebuilt = "  🔄" if has_override else ""
+                label = f"{check}**{day_num}**  {theme}{date_badge}{rebuilt}"
+                with st.expander(label, expanded=False):
+                    st.markdown(content)
     elif itinerary:
         st.markdown(itinerary)
     else:
@@ -516,11 +635,22 @@ elif st.session_state.view_mode == "trip":
 
     dest_slug = trip_data.get("destination", "trip").replace(",", "").replace(" ", "_").lower()
 
+    def _do_regenerate():
+        """Shared logic for both Regenerate Plan buttons."""
+        pre = _pre_itinerary_messages(messages)
+        if not pre:
+            # No conversation history at all — build a fresh prompt from metadata
+            pre = [{"role": "user", "content": _build_regen_prompt(trip_data)}]
+        st.session_state.messages = pre
+        st.session_state.itinerary_generated = False
+        st.session_state.view_mode = "trip"   # stay on this page
+        st.rerun()
+
     if status == "active":
-        col1, col2, col3 = st.columns([3, 2, 2])
+        col1, col2 = st.columns([3, 1])
         with col1:
             if st.button(
-                f"🧭 I'm on Day {extra} — What should I do?",
+                f"🧭 What should I do today? (Day {extra})",
                 use_container_width=True, type="primary",
             ):
                 st.session_state.companion_mode = True
@@ -530,23 +660,12 @@ elif st.session_state.view_mode == "trip":
                 })
                 st.rerun()
         with col2:
-            if itinerary and st.button("🔄 Rebuild Today", use_container_width=True,
-                                       help="Regenerate today's plan around current weather"):
-                st.session_state["rebuilding_day"] = extra
-                st.rerun()
-        with col3:
             if st.button("↺ Regenerate Plan", use_container_width=True,
                          help="Rebuild the entire itinerary from scratch"):
-                if messages:
-                    st.session_state.messages = [messages[0]]
-                    st.session_state.itinerary_generated = False
-                    st.rerun()
+                _do_regenerate()
     else:
         if st.button("↺ Regenerate Plan", help="Rebuild the entire itinerary from scratch"):
-            if messages:
-                st.session_state.messages = [messages[0]]
-                st.session_state.itinerary_generated = False
-                st.rerun()
+            _do_regenerate()
 
     if itinerary:
         with st.expander("📤 Export & Share"):

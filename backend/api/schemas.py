@@ -112,6 +112,23 @@ class ChecklistResponse(BaseModel):
 
 # ── Extraction ────────────────────────────────────────────────────────────────
 
+class DayPlan(BaseModel):
+    """A single day's itinerary, extracted from Marco's free-form response."""
+    day: int              # Day number (first number for ranges like Day 5-6 → 5)
+    title: str            # Full heading, e.g. "Day 1 (May 28) — ARRIVAL"
+    content: str          # Everything Marco wrote for that day
+
+
+class BudgetBreakdown(BaseModel):
+    """Estimated costs per category. None means the category wasn't mentioned."""
+    flights: float | None = None
+    accommodation: float | None = None
+    food: float | None = None
+    activities: float | None = None
+    transport: float | None = None
+    total_estimated: float | None = None
+
+
 class ExtractRequest(BaseModel):
     """Body for POST /chat/extract — runs post-generation Haiku extraction."""
     messages: list[Message]
@@ -119,10 +136,11 @@ class ExtractRequest(BaseModel):
 
 
 class ExtractResponse(BaseModel):
-    """Structured trip info + budget breakdown extracted from conversation."""
+    """Structured trip info, day plans, and budget extracted from conversation."""
     destination: str = ""
     city: str = ""
     country_code: str = ""
     start_date: str = ""
     end_date: str = ""
-    budget_breakdown: dict[str, Any] = Field(default_factory=dict)
+    days: list[DayPlan] = Field(default_factory=list)
+    budget_breakdown: BudgetBreakdown = Field(default_factory=BudgetBreakdown)

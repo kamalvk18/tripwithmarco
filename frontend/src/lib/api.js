@@ -110,6 +110,27 @@ export async function chatStream({
   }
 }
 
+// ── Weather ──────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch a formatted 5-day weather forecast string for a city.
+ * Returns { weather_text: "..." } or null on failure.
+ * Call this once and cache the result — see useWeatherCache hook.
+ */
+export async function fetchWeather(city, countryCode = '') {
+  try {
+    const params = new URLSearchParams({ city })
+    if (countryCode) params.set('country_code', countryCode)
+    const res = await fetch(`${BASE}/chat/weather?${params}`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!res.ok) return null
+    return res.json()   // { weather_text: "..." }
+  } catch {
+    return null
+  }
+}
+
 // ── Extraction ───────────────────────────────────────────────────────────────
 
 export async function extractInfo(messages, currency = 'EUR') {

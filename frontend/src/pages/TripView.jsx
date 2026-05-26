@@ -9,6 +9,7 @@ import { loadTrip, updateTrip, deleteTrip } from '@/lib/api'
 import { extractAllDays, tripStatus } from '@/lib/utils'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
 import { useSSEChat } from '@/hooks/useSSEChat'
+import { useWeatherCache } from '@/hooks/useWeatherCache'
 import { DayCard } from '@/components/DayCard'
 import { BudgetPanel } from '@/components/BudgetPanel'
 import { ChatPanel } from '@/components/ChatPanel'
@@ -23,11 +24,13 @@ export default function TripView() {
   const { id }      = useParams()
   const navigate    = useNavigate()
   const { streaming, toolStatus, send } = useSSEChat()
+  const { getWeather } = useWeatherCache()
 
-  const [tripData, setTripData]     = useState(null)
-  const [loading, setLoading]       = useState(true)
+  const [tripData, setTripData]       = useState(null)
+  const [loading, setLoading]         = useState(true)
   const [showCompanion, setShowCompanion] = useState(false)
-  const [rebuilding, setRebuilding] = useState(false)
+  const [weatherText, setWeatherText] = useState(null)
+  const [rebuilding, setRebuilding]   = useState(false)
   const [rebuildText, setRebuildText] = useState('')
   const [showExport, setShowExport] = useState(false)
   const [emailPanelOpen, setEmailPanelOpen] = useState(false)
@@ -73,6 +76,20 @@ export default function TripView() {
     .trim()
   const days      = extractAllDays(itinerary)
   const { status, label, dayNum } = tripStatus(tripData)
+
+  // ── Companion toggle — fetch weather once on activation ───────────────────
+  async function handleToggleCompanion() {
+    const next = !showCompanion
+    setShowCompanion(next)
+    setRebuilding(false)
+
+    if (next && tripData && status === 'active' && !weatherText) {
+      const city        = tripData.city || tripData.destination
+      const countryCode = tripData.country_code ?? ''
+      const text = await getWeather(city, countryCode)
+      setWeatherText(text)   // null on failure — backend falls back to its own fetch
+    }
+  }
 
   // ── Rebuild Today ──────────────────────────────────────────────────────────
   async function handleRebuildToday() {
@@ -175,7 +192,7 @@ export default function TripView() {
           <>
             <Button
               variant={showCompanion ? 'primary' : 'secondary'}
-              onClick={() => { setShowCompanion(c => !c); setRebuilding(false) }}
+              onClick={handleToggleCompanion}
             >
               <Navigation size={14} />
               {showCompanion ? 'Hide Companion' : '🧭 Companion Mode'}
@@ -355,6 +372,7 @@ export default function TripView() {
           messages={messages}
           tripData={tripData}
           companion
+          weatherText={weatherText}
           onSave={handleSave}
         />
       ) : (

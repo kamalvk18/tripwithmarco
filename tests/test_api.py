@@ -196,12 +196,18 @@ EXTRACT_RESULT = {
 }
 
 
+_STRUCTURED_RESULT = {
+    "days": [{"day": 1, "title": "Day 1 — ARRIVAL", "content": "Arrive, check in."}],
+    "budget_breakdown": EXTRACT_RESULT["budget_breakdown"],
+}
+
+
 class TestExtract:
     def test_returns_200(self):
         with (
             patch("backend.api.routes.chat.extract_trip_details", return_value=EXTRACT_RESULT),
             patch("backend.api.routes.chat.extract_itinerary", return_value="Day 1: ..."),
-            patch("backend.api.routes.chat.extract_budget_breakdown", return_value=EXTRACT_RESULT["budget_breakdown"]),
+            patch("backend.api.routes.chat.extract_structured_itinerary", return_value=_STRUCTURED_RESULT),
         ):
             res = client.post("/api/chat/extract", json=EXTRACT_PAYLOAD)
         assert res.status_code == 200
@@ -210,7 +216,7 @@ class TestExtract:
         with (
             patch("backend.api.routes.chat.extract_trip_details", return_value=EXTRACT_RESULT),
             patch("backend.api.routes.chat.extract_itinerary", return_value="Day 1: ..."),
-            patch("backend.api.routes.chat.extract_budget_breakdown", return_value=EXTRACT_RESULT["budget_breakdown"]),
+            patch("backend.api.routes.chat.extract_structured_itinerary", return_value=_STRUCTURED_RESULT),
         ):
             res = client.post("/api/chat/extract", json=EXTRACT_PAYLOAD)
         assert res.json()["destination"] == "Kraków, Poland"
@@ -219,10 +225,22 @@ class TestExtract:
         with (
             patch("backend.api.routes.chat.extract_trip_details", return_value=EXTRACT_RESULT),
             patch("backend.api.routes.chat.extract_itinerary", return_value="Day 1: ..."),
-            patch("backend.api.routes.chat.extract_budget_breakdown", return_value=EXTRACT_RESULT["budget_breakdown"]),
+            patch("backend.api.routes.chat.extract_structured_itinerary", return_value=_STRUCTURED_RESULT),
         ):
             res = client.post("/api/chat/extract", json=EXTRACT_PAYLOAD)
         assert res.json()["budget_breakdown"]["flights"] == 200
+
+    def test_returns_days(self):
+        with (
+            patch("backend.api.routes.chat.extract_trip_details", return_value=EXTRACT_RESULT),
+            patch("backend.api.routes.chat.extract_itinerary", return_value="Day 1: ..."),
+            patch("backend.api.routes.chat.extract_structured_itinerary", return_value=_STRUCTURED_RESULT),
+        ):
+            res = client.post("/api/chat/extract", json=EXTRACT_PAYLOAD)
+        days = res.json()["days"]
+        assert len(days) == 1
+        assert days[0]["day"] == 1
+        assert days[0]["title"] == "Day 1 — ARRIVAL"
 
     def test_missing_currency_defaults_to_eur(self):
         payload_no_currency = {
@@ -231,7 +249,7 @@ class TestExtract:
         with (
             patch("backend.api.routes.chat.extract_trip_details", return_value={}),
             patch("backend.api.routes.chat.extract_itinerary", return_value=""),
-            patch("backend.api.routes.chat.extract_budget_breakdown", return_value={}) as mock_extract,
+            patch("backend.api.routes.chat.extract_structured_itinerary", return_value={}) as mock_extract,
         ):
             client.post("/api/chat/extract", json=payload_no_currency)
         mock_extract.assert_called_once_with("", currency="EUR")

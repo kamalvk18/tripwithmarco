@@ -151,12 +151,31 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
 
 
 def extract_itinerary(messages: list) -> str:
-    """Pull the full itinerary text from saved conversation history."""
-    return next(
-        (m["content"] for m in reversed(messages)
-         if m["role"] == "assistant" and "day 1" in m["content"].lower()),
-        ""
-    )
+    """Pull the full itinerary text from saved conversation history.
+
+    Prefers the last assistant message that has proper Day N headers (i.e. a
+    real day-by-day plan), falling back to the last message that merely
+    mentions "day 1".  This prevents later conversational replies that
+    casually reference "Day 1" from shadowing the actual itinerary.
+    """
+    heading_re = re.compile(r'(?i)(?:^|\n)[ \t]*(?:#{1,3}[ \t]*)?\*{0,2}day[ \t]+\d+')
+
+    def _is_real_itinerary(content: str) -> bool:
+        return len(heading_re.findall(content)) >= 2
+
+    candidates = [m for m in reversed(messages) if m["role"] == "assistant"]
+
+    # Prefer a message with actual day-structure headings
+    for m in candidates:
+        if _is_real_itinerary(m["content"]):
+            return m["content"]
+
+    # Fallback: last assistant message that mentions "day 1" at all
+    for m in candidates:
+        if "day 1" in m["content"].lower():
+            return m["content"]
+
+    return ""
 
 
 def extract_day_section(itinerary: str, day_number: int) -> str:

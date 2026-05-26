@@ -10,8 +10,25 @@ const CATEGORY_ICONS = {
 }
 
 export function BudgetPanel({ breakdown, userBudget, currency }) {
-  if (!breakdown || Object.keys(breakdown).length === 0) return null
+  const hasBreakdown = breakdown && Object.keys(breakdown).length > 0
 
+  // Nothing to show at all
+  if (!hasBreakdown && !(userBudget > 0)) return null
+
+  // ── Minimal view — breakdown extraction still pending ────────────────────
+  if (!hasBreakdown) {
+    return (
+      <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] p-5">
+        <h3 className="text-sm font-semibold text-slate-200 mb-3">💰 Budget</h3>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-slate-400">Your budget</span>
+          <span className="text-base font-bold text-slate-100">{formatMoney(userBudget, currency)}</span>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Full breakdown view ────────────────────────────────────────────────────
   const total = breakdown.total_estimated ?? 0
   const overage = userBudget ? total - userBudget : 0
   const categories = Object.entries(breakdown).filter(([k]) => k !== 'total_estimated')

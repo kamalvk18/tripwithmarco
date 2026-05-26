@@ -15,13 +15,20 @@ export default function Home() {
   const [deleting, setDeleting] = useState(null)
   const navigate = useNavigate()
 
+  // Used by handleDelete to silently refresh the list after a deletion.
   async function load() {
-    setLoading(true)
     try { setTrips(await listTrips()) } catch { setTrips([]) }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  // Initial load — promise chain in the effect body means setState only
+  // fires inside .then()/.finally() callbacks, not synchronously in the effect.
+  useEffect(() => {
+    listTrips()
+      .then(setTrips)
+      .catch(() => setTrips([]))
+      .finally(() => setLoading(false))
+  }, [])
 
   async function handleDelete(e, tripId) {
     e.stopPropagation()

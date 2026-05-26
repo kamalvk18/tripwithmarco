@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import {
   RefreshCw, Navigation, RotateCcw, Download,
   Calendar, FileText, Wifi, Trash2, ArrowLeft,
 } from 'lucide-react'
-import { loadTrip, updateTrip, deleteTrip } from '@/lib/api'
-import { extractAllDays, tripStatus } from '@/lib/utils'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
+import { useTrip } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { useWeatherCache } from '@/hooks/useWeatherCache'
 import { DayCard } from '@/components/DayCard'
@@ -21,29 +20,31 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 
 export default function TripView() {
-  const { id }      = useParams()
-  const navigate    = useNavigate()
+  const { id }   = useParams()
+  const navigate = useNavigate()
+
+  // ── Data & derived state (all trip concerns live in the hook) ──────────────
+  const {
+    tripData, loading,
+    messages, itinerary, days,
+    status, label, dayNum,
+    saveMessages, updateSpending, updateChecklist, updateEmailConfig,
+    updateDayOverride, remove,
+  } = useTrip(id)
+
+  // ── UI-only state ──────────────────────────────────────────────────────────
   const { streaming, toolStatus, send } = useSSEChat()
   const { getWeather } = useWeatherCache()
 
-  const [tripData, setTripData]       = useState(null)
-  const [loading, setLoading]         = useState(true)
   const [showCompanion, setShowCompanion] = useState(false)
-  const [weatherText, setWeatherText] = useState(null)
-  const [rebuilding, setRebuilding]   = useState(false)
-  const [rebuildText, setRebuildText] = useState('')
-  const [showExport, setShowExport] = useState(false)
+  const [weatherText, setWeatherText]     = useState(null)
+  const [rebuilding, setRebuilding]       = useState(false)
+  const [rebuildText, setRebuildText]     = useState('')
+  const [showExport, setShowExport]       = useState(false)
   const [emailPanelOpen, setEmailPanelOpen] = useState(false)
   const rebuildRef = useRef('')
 
-  useEffect(() => {
-    setLoading(true)
-    loadTrip(id).then(data => {
-      setTripData(data)
-      setLoading(false)
-    })
-  }, [id])
-
+  // ── Loading / not-found guards ─────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-2 text-slate-400">
@@ -60,34 +61,15 @@ export default function TripView() {
     )
   }
 
-  const messages     = tripData.messages ?? []
-  const assistantMsgs = messages.filter(m => m.role === 'assistant')
-  // Use the LAST assistant message that contains day-by-day content.
-  // In a multi-turn planning conversation the first assistant message is often
-  // Marco asking clarifying questions / presenting options — not the itinerary.
-  const rawItinerary = (
-    [...assistantMsgs].reverse().find(m => /\bday\s+\d+\b/i.test(m.content))
-    ?? assistantMsgs[0]
-  )?.content ?? ''
-  // Strip any [OPTION: ...] markers left over from the planning conversation
-  const itinerary = rawItinerary
-    .replace(/\[OPTION:[^\]]*\]/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  const days      = extractAllDays(itinerary)
-  const { status, label, dayNum } = tripStatus(tripData)
-
   // ── Companion toggle — fetch weather once on activation ───────────────────
   async function handleToggleCompanion() {
     const next = !showCompanion
     setShowCompanion(next)
     setRebuilding(false)
 
-    if (next && tripData && status === 'active' && !weatherText) {
-      const city        = tripData.city || tripData.destination
-      const countryCode = tripData.country_code ?? ''
-      const text = await getWeather(city, countryCode)
-      setWeatherText(text)   // null on failure — backend falls back to its own fetch
+    if (next && status === 'active' && !weatherText) {
+      const city = tripData.city || tripData.destination
+      setWeatherText(await getWeather(city, tripData.country_code ?? ''))
     }
   }
 
@@ -99,65 +81,58 @@ export default function TripView() {
     rebuildRef.current = ''
     setRebuildText('')
 
-    const city = tripData.city || tripData.destination
+    const city   = tripData.city || tripData.destination
     const prompt = `Rebuild Day ${dayNum}'s itinerary based on today's actual weather in ${city}. Use the weather tool to check current conditions, then restructure: if rain or bad weather is forecast, move outdoor activities to better windows or swap for indoor alternatives. Keep the same neighbourhood and general vibe. Output ONLY the rebuilt day plan, starting with 'Day ${dayNum} — [New Title]'. No preamble.`
 
-    const msgs = [...messages, { role: 'user', content: prompt }]
-
     await send({
-      messages: msgs,
+      messages: [...messages, { role: 'user', content: prompt }],
       tripData,
       companionMode: true,
-      onChunk: (chunk) => {
+      onChunk: chunk => {
         rebuildRef.current += chunk
         setRebuildText(rebuildRef.current)
       },
       onDone: async () => {
-        const rebuilt = rebuildRef.current
-        const overrides = { ...(tripData.day_overrides ?? {}), [String(dayNum)]: rebuilt }
-        const updated   = { ...tripData, day_overrides: overrides }
-        setTripData(updated)
-        await updateTrip(id, updated)
+        await updateDayOverride(dayNum, rebuildRef.current)
         setRebuilding(false)
         setRebuildText('')
       },
     })
   }
 
-  // ── Regenerate ─────────────────────────────────────────────────────────────
-  async function handleRegenerate() {
+  // ── Regenerate — re-open the plan form pre-filled ─────────────────────────
+  function handleRegenerate() {
     const firstUser = messages.find(m => m.role === 'user')
-    if (!firstUser) return
-    navigate('/plan')   // simplest: send back to plan with same prompt pre-filled
-  }
-
-  // ── Save (called by ChatPanel after each message) ──────────────────────────
-  async function handleSave(updatedMessages) {
-    const updated = { ...tripData, messages: updatedMessages }
-    setTripData(updated)
-    await updateTrip(id, updated)
-  }
-
-  // ── Expense / Checklist local updates ────────────────────────────────────
-  function handleSpendingUpdate(newSpending) {
-    setTripData(t => ({ ...t, spending: newSpending }))
-  }
-
-  function handleChecklistUpdate(newItems) {
-    setTripData(t => ({ ...t, checklist: newItems }))
-  }
-
-  function handleEmailConfigUpdate(newConfig) {
-    setTripData(t => ({ ...t, email_config: newConfig }))
+    let origin = tripData.origin ?? ''
+    if (!origin && firstUser) {
+      const m = firstUser.content.match(/trip to .+ from ([^.]+)\./i)
+      if (m) origin = m[1].trim()
+    }
+    navigate('/plan', {
+      state: {
+        prefill: {
+          destination:            tripData.destination    ?? '',
+          destinationCountryCode: tripData.country_code  ?? '',
+          origin,
+          startDate:  tripData.start_date ?? '',
+          endDate:    tripData.end_date   ?? '',
+          budget:     String(tripData.budget ?? ''),
+          currency:   tripData.currency   ?? 'EUR',
+          hasTwoWheelerLicence:  tripData.has_two_wheeler_licence  ?? false,
+          hasFourWheelerLicence: tripData.has_four_wheeler_licence ?? false,
+        },
+      },
+    })
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete() {
     if (!confirm('Delete this trip? This cannot be undone.')) return
-    await deleteTrip(id)
+    await remove()
     navigate('/')
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
       {/* Back */}
@@ -252,7 +227,7 @@ export default function TripView() {
       )}
 
       {/* Budget */}
-      {tripData.budget_breakdown && Object.keys(tripData.budget_breakdown).length > 0 && (
+      {(tripData.budget > 0 || (tripData.budget_breakdown && Object.keys(tripData.budget_breakdown).length > 0)) && (
         <div className="mb-4">
           <BudgetPanel
             breakdown={tripData.budget_breakdown}
@@ -262,35 +237,34 @@ export default function TripView() {
         </div>
       )}
 
-      {/* Expense tracker — active or past trips */}
-      {(status === 'active' || status === 'past') && (
+      {/* Expense tracker */}
+      {(status === 'upcoming' || status === 'active' || status === 'past') && (
         <div className="mb-4">
           <ExpenseTracker
             tripId={id}
             spending={tripData.spending ?? []}
             breakdown={tripData.budget_breakdown ?? {}}
             currency={tripData.currency ?? 'EUR'}
-            onUpdate={handleSpendingUpdate}
+            onUpdate={updateSpending}
           />
         </div>
       )}
 
-      {/* Pre-trip checklist — upcoming or active trips */}
+      {/* Pre-trip checklist */}
       {(status === 'upcoming' || status === 'active') && (
         <div className="mb-4">
           <ChecklistPanel
             tripId={id}
             destination={tripData.destination}
             items={tripData.checklist ?? []}
-            onUpdate={handleChecklistUpdate}
+            onUpdate={updateChecklist}
           />
         </div>
       )}
 
-      {/* Daily briefing email — upcoming or active trips */}
+      {/* Daily briefing email */}
       {(status === 'upcoming' || status === 'active') && (
         <div className="mb-6 space-y-2">
-          {/* Nudge banner — only shown when email not yet configured */}
           {!tripData.email_config?.email && (
             <button
               type="button"
@@ -315,11 +289,10 @@ export default function TripView() {
               </span>
             </button>
           )}
-
           <EmailBriefingConfig
             tripId={id}
             emailConfig={tripData.email_config ?? {}}
-            onUpdate={handleEmailConfigUpdate}
+            onUpdate={updateEmailConfig}
             forceOpen={emailPanelOpen}
             onOpenChange={setEmailPanelOpen}
           />
@@ -373,13 +346,13 @@ export default function TripView() {
           tripData={tripData}
           companion
           weatherText={weatherText}
-          onSave={handleSave}
+          onSave={saveMessages}
         />
       ) : (
         <ChatPanel
           messages={messages}
           tripData={tripData}
-          onSave={handleSave}
+          onSave={saveMessages}
         />
       )}
     </div>

@@ -4,10 +4,9 @@ import { useState, useEffect } from 'react'
  * Fetches city suggestions from Photon (OpenStreetMap, by Komoot).
  * Free, no API key, CORS-enabled.
  *
- * - Debounces 300ms to avoid hammering the API
- * - Requires at least 2 characters
+ * - Debounces 300ms for real queries; clears instantly when < 2 chars
  * - Deduplicates by display label
- * - Fails silently — the input still works if the network is unavailable
+ * - Fails silently — input still works if network is unavailable
  *
  * Each suggestion: { name, label, country, countryCode, state }
  */
@@ -17,21 +16,33 @@ export function useLocationSuggestions(query) {
 
   useEffect(() => {
     const q = query.trim()
-    if (q.length < 2) {
-      setSuggestions([])
-      setLoading(false)
-      return
-    }
+    let cancelled = false
 
-    setLoading(true)
-
+    // All state updates live inside the setTimeout callback so none are
+    // synchronous in the effect body (satisfies react-hooks/set-state-in-effect).
+    // Use 0ms delay for instant clear when query is too short, 300ms otherwise.
     const timer = setTimeout(async () => {
+      if (cancelled) return
+
+      if (q.length < 2) {
+        setSuggestions([])
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+
       try {
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&layer=city`
+        const url =
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&layer=city`
         const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+
+        if (cancelled) return
         if (!res.ok) throw new Error('Photon error')
 
         const data = await res.json()
+        if (cancelled) return
+
         const seen  = new Set()
         const items = (data.features ?? [])
           .map(f => {
@@ -52,15 +63,15 @@ export function useLocationSuggestions(query) {
 
         setSuggestions(items)
       } catch {
-        setSuggestions([])
+        if (!cancelled) setSuggestions([])
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
-    }, 300)
+    }, q.length < 2 ? 0 : 300)
 
     return () => {
+      cancelled = true
       clearTimeout(timer)
-      setLoading(false)
     }
   }, [query])
 

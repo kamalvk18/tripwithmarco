@@ -50,7 +50,8 @@ function Bubble({ role, content, isStreaming }) {
  * ChatPanel — collapsible chat below the itinerary.
  *
  * Props:
- *   messages   — full trip conversation history (planning + previous ask-marco turns)
+ *   messages   — full trip conversation history (planning + previous ask-marco turns).
+ *                Used as API context but NOT displayed directly — only follow-ups are shown.
  *   tripData   — for context injection
  *   companion  — bool, enables companion mode
  *   onSave     — called with (updatedMessages) after each assistant response
@@ -58,25 +59,24 @@ function Bubble({ role, content, isStreaming }) {
 export function ChatPanel({ messages, tripData, companion = false, weatherText = null, onSave }) {
   const { streaming, toolStatus, send } = useSSEChat()
   const [expanded, setExpanded]           = useState(false)
-  const [chatMessages, setChatMessages]   = useState([])   // new turns added in TripView
+  // In-flight turns for the current exchange (cleared after onSave, since they
+  // move into the messages prop — prevents duplicate display on re-render).
+  const [chatMessages, setChatMessages]   = useState([])
   const [input, setInput]                 = useState('')
   const [streamingText, setStreamingText] = useState('')
   const [quickReplies, setQuickReplies]   = useState([])
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
-
-  // Auto-expand when new turns arrive (e.g. user starts chatting)
-  useEffect(() => {
-    if (chatMessages.length > 0) setExpanded(true)
-  }, [chatMessages.length])
+  // Snapshot of messages.length at mount — used to slice out planning history.
+  // useState (not useRef) so the value is safe to read during render.
+  const [initialMsgCount] = useState(messages.length)
 
   // Scroll to bottom when expanded or when new messages arrive
   useEffect(() => {
     if (expanded) {
-      // Small delay so the panel has finished rendering before scrolling
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
-  }, [expanded, chatMessages, streamingText, toolStatus])
+  }, [expanded, messages.length, streamingText, toolStatus])
 
   // Focus input when panel opens
   useEffect(() => {
@@ -93,16 +93,15 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
     const userMsg = { role: 'user', content: text }
     const newChat  = [...chatMessages, userMsg]
     setChatMessages(newChat)
+    setExpanded(true)
     setInput('')
     setStreamingText('')
     setQuickReplies([])
 
-    // Full context = historical trip messages + new ask-marco turns
+    // Full context = ALL historical messages + current in-flight turns
     const fullHistory = [...messages, ...newChat]
     let accumulated = ''
 
-    // Inject cached weather into tripData so the backend skips its own fetch.
-    // Falls back to null → backend fetches live (graceful degradation).
     const tripDataWithWeather = weatherText
       ? { ...tripData, weather_text: weatherText }
       : tripData
@@ -118,18 +117,22 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
       onDone: () => {
         const assistantMsg = { role: 'assistant', content: accumulated }
         const updated = [...newChat, assistantMsg]
-        setChatMessages(updated)
         setStreamingText('')
         setQuickReplies(extractOptions(accumulated))
-        // Persist the full updated history back to the trip
+        // Persist to parent first, then clear local state.
+        // After onSave the parent re-renders with updated messages prop that now
+        // includes these turns — clearing chatMessages prevents duplicate display.
         onSave?.([...messages, ...updated])
+        setChatMessages([])
       },
     })
   }
 
-  // All messages to display: historical planning conversation + new ask-marco turns
-  const allDisplay = [...messages, ...chatMessages]
-  const isEmpty    = allDisplay.length === 0 && !streaming
+  // Display only follow-up exchanges added after this component mounted.
+  // The planning conversation is in messages[0..initialMsgCount) — it's sent as
+  // API context but is not shown here (too much noise, user already saw it in /plan).
+  const followUps = [...messages.slice(initialMsgCount), ...chatMessages]
+  const isEmpty   = followUps.length === 0 && !streaming
 
   const headerLabel = companion ? '🧭 Marco — Companion' : '💬 Ask Marco'
   const placeholder = companion
@@ -151,9 +154,9 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
         <div className="flex items-center gap-2">
           <MessageCircle size={14} className="text-indigo-400" />
           <span className="text-sm font-semibold text-slate-200">{headerLabel}</span>
-          {allDisplay.length > 0 && (
+          {followUps.length > 0 && (
             <span className="text-xs text-slate-500">
-              · {allDisplay.length} message{allDisplay.length !== 1 ? 's' : ''}
+              · {followUps.length} message{followUps.length !== 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -175,7 +178,7 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
               <p className="text-xs text-slate-500 text-center py-4">{emptyHint}</p>
             )}
 
-            {allDisplay.map((msg, i) => (
+            {followUps.map((msg, i) => (
               <Bubble key={i} role={msg.role} content={msg.content} />
             ))}
 

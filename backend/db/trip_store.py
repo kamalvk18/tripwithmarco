@@ -28,12 +28,16 @@ def save_trip(trip_data: dict) -> str:
 def load_trip(trip_id: str) -> dict | None:
     """Load a specific trip by ID."""
     filepath = os.path.join(TRIPS_DIR, f"{trip_id}.json")
-    
+
     if not os.path.exists(filepath):
         return None
-    
+
     with open(filepath, "r") as f:
-        return json.load(f)
+        trip = json.load(f)
+    # Guard: ensure trip_id is never null (older files may lack it)
+    if not trip.get("trip_id"):
+        trip["trip_id"] = trip_id
+    return trip
 
 def list_trips() -> list:
     """List all saved trips."""
@@ -46,7 +50,7 @@ def list_trips() -> list:
             with open(filepath, "r") as f:
                 trip = json.load(f)
                 trips.append({
-                    "trip_id":    trip.get("trip_id"),
+                    "trip_id":    trip.get("trip_id") or filename[:-5],
                     "destination": trip.get("destination", "Unknown"),
                     "dates":      trip.get("dates", ""),
                     "saved_at":   trip.get("saved_at", ""),

@@ -89,6 +89,27 @@ export function extractAllDays(text) {
   return days
 }
 
+/**
+ * Find and clean the itinerary text from a conversation messages array.
+ *
+ * Picks the last assistant message that produces parseable day structure so
+ * follow-up messages that only mention "Day 1" inline never hijack the result.
+ */
+export function computeItinerary(messages) {
+  const assistantMsgs = (messages ?? []).filter(
+    m => m.role === 'assistant' && typeof m.content === 'string'
+  )
+  const clean = text =>
+    text.replace(/\[OPTION:[^\]]*\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
+
+  const raw = (
+    [...assistantMsgs].reverse().find(m => extractAllDays(clean(m.content)).length > 0)
+    ?? assistantMsgs[0]
+  )?.content ?? ''
+
+  return clean(raw)
+}
+
 const TOOL_LABELS = {
   search_flights: '✈️ Checking flights...',
   search_hotels:  '🏨 Searching hotels...',

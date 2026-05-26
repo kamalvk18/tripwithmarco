@@ -24,8 +24,8 @@ export async function listTrips() {
   return res.json()
 }
 
-export async function loadTrip(tripId) {
-  const res = await fetch(`${BASE}/trips/${tripId}`)
+export async function loadTrip(tripId, signal) {
+  const res = await fetch(`${BASE}/trips/${tripId}`, { signal })
   if (res.status === 404) return null
   if (!res.ok) throw new Error('Failed to load trip')
   return res.json()
@@ -133,11 +133,12 @@ export async function fetchWeather(city, countryCode = '') {
 
 // ── Extraction ───────────────────────────────────────────────────────────────
 
-export async function extractInfo(messages, currency = 'EUR') {
+export async function extractInfo(messages, currency = 'EUR', signal) {
   const res = await fetch(`${BASE}/chat/extract`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, currency }),
+    signal,
   })
   if (!res.ok) return {}
   return res.json()

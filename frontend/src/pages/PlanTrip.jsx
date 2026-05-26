@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { Plane, Send, Save } from 'lucide-react'
 import { extractInfo, saveTrip, updateTrip } from '@/lib/api'
 import { useSSEChat } from '@/hooks/useSSEChat'
+import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -55,18 +56,24 @@ function stripOptions(text) {
 
 export default function PlanTrip() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { streaming, toolStatus, send } = useSSEChat()
 
+  // Pre-fill from navigation state when regenerating an existing trip
+  const prefill = location.state?.prefill ?? {}
+
   const [form, setForm] = useState({
-    destination: '',
-    origin: '',
-    startDate: '',
-    endDate: '',
-    budget: '',
-    currency: 'EUR',
+    destination:            prefill.destination            ?? '',
+    destinationCountryCode: prefill.destinationCountryCode ?? '',
+    origin:                 prefill.origin                 ?? '',
+    startDate:              prefill.startDate              ?? '',
+    endDate:                prefill.endDate                ?? '',
+    budget:                 prefill.budget                 ?? '',
+    currency:               prefill.currency               ?? 'EUR',
     travelStyles: [],
     dietary: 'None',
-    hasLicence: false,
+    hasTwoWheelerLicence:  prefill.hasTwoWheelerLicence  ?? false,
+    hasFourWheelerLicence: prefill.hasFourWheelerLicence ?? false,
     notes: '',
   })
 
@@ -118,7 +125,10 @@ export default function PlanTrip() {
       start_date: form.startDate,
       end_date: form.endDate,
       city: form.destination,
-      country_code: '',
+      country_code: form.destinationCountryCode,
+      origin: form.origin,
+      has_two_wheeler_licence:  form.hasTwoWheelerLicence,
+      has_four_wheeler_licence: form.hasFourWheelerLicence,
       budget: parseFloat(form.budget) || 0,
       currency: form.currency,
       budget_breakdown: {},
@@ -137,7 +147,11 @@ export default function PlanTrip() {
       `Budget: ${form.budget} ${form.currency}.`,
       `Travel style: ${styles}.`,
       form.dietary !== 'None' ? `Dietary: ${form.dietary}.` : '',
-      form.hasLicence ? "I have a driver's licence." : '',
+      form.hasTwoWheelerLicence && form.hasFourWheelerLicence
+        ? "I have both a two-wheeler and a four-wheeler driving licence."
+        : form.hasTwoWheelerLicence  ? "I have a two-wheeler (bike/scooter) driving licence."
+        : form.hasFourWheelerLicence ? "I have a four-wheeler (car) driving licence."
+        : '',
       form.notes ? `Extra notes: ${form.notes}` : '',
     ].filter(Boolean).join(' ')
   }
@@ -204,7 +218,7 @@ export default function PlanTrip() {
         start_date: extracted.start_date || form.startDate,
         end_date: extracted.end_date || form.endDate,
         city: extracted.city || form.destination,
-        country_code: extracted.country_code || '',
+        country_code: extracted.country_code || form.destinationCountryCode || '',
         budget: parseFloat(form.budget) || 0,
         currency: form.currency,
         budget_breakdown: extracted.budget_breakdown || {},
@@ -261,19 +275,21 @@ export default function PlanTrip() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Destination *</Label>
-              <Input
+              <AutocompleteInput
                 placeholder="e.g. Tokyo, Japan"
                 value={form.destination}
-                onChange={e => setField('destination', e.target.value)}
+                onChange={val => setForm(f => ({ ...f, destination: val, destinationCountryCode: '' }))}
+                onSelect={s => setForm(f => ({ ...f, destination: s.name, destinationCountryCode: s.countryCode }))}
                 required
               />
             </div>
             <div>
               <Label>Flying from *</Label>
-              <Input
+              <AutocompleteInput
                 placeholder="e.g. London"
                 value={form.origin}
-                onChange={e => setField('origin', e.target.value)}
+                onChange={val => setField('origin', val)}
+                onSelect={s => setField('origin', s.name)}
                 required
               />
             </div>
@@ -285,7 +301,16 @@ export default function PlanTrip() {
               <Input
                 type="date"
                 value={form.startDate}
-                onChange={e => setField('startDate', e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                onChange={e => {
+                  const newStart = e.target.value
+                  // If end date is now before the new start, clear it
+                  setForm(f => ({
+                    ...f,
+                    startDate: newStart,
+                    endDate: f.endDate && f.endDate <= newStart ? '' : f.endDate,
+                  }))
+                }}
                 required
               />
             </div>
@@ -294,6 +319,7 @@ export default function PlanTrip() {
               <Input
                 type="date"
                 value={form.endDate}
+                min={form.startDate || new Date().toISOString().split('T')[0]}
                 onChange={e => setField('endDate', e.target.value)}
                 required
               />
@@ -345,16 +371,28 @@ export default function PlanTrip() {
                 {DIETARY.map(d => <option key={d}>{d}</option>)}
               </Select>
             </div>
-            <div className="flex items-end pb-0.5">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded accent-indigo-500"
-                  checked={form.hasLicence}
-                  onChange={e => setField('hasLicence', e.target.checked)}
-                />
-                <span className="text-sm text-slate-300">I have a driver's licence</span>
-              </label>
+            <div>
+              <Label>Driving licence</Label>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded accent-indigo-500"
+                    checked={form.hasTwoWheelerLicence}
+                    onChange={e => setField('hasTwoWheelerLicence', e.target.checked)}
+                  />
+                  <span className="text-sm text-slate-300">Two-wheeler (bike / scooter)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded accent-indigo-500"
+                    checked={form.hasFourWheelerLicence}
+                    onChange={e => setField('hasFourWheelerLicence', e.target.checked)}
+                  />
+                  <span className="text-sm text-slate-300">Four-wheeler (car)</span>
+                </label>
+              </div>
             </div>
           </div>
 

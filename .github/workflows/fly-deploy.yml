@@ -10,8 +10,12 @@ jobs:
     name: Deploy app
     runs-on: ubuntu-latest
     concurrency: deploy-group    # optional: ensure only one action runs at a time
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install flyctl
         run: curl -L https://fly.io/install.sh | FLYCTL_INSTALL=/usr/local sh
       - name: Deploy to Fly.io

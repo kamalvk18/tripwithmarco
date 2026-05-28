@@ -51,6 +51,16 @@ export async function updateTrip(tripId, tripData) {
   return res.ok
 }
 
+/** Apply partial field updates to a trip without sending the full trip body. */
+export async function patchTrip(tripId, updates) {
+  const res = await fetch(`${BASE}/trips/${tripId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  return res.ok
+}
+
 export async function deleteTrip(tripId) {
   const res = await fetch(`${BASE}/trips/${tripId}`, { method: 'DELETE' })
   return res.ok
@@ -74,6 +84,7 @@ export async function chatStream({
   companionMode = false,
   onText,
   onToolCall,
+  onBookingData,
   signal,
 }) {
   const res = await fetch(`${BASE}/chat/stream`, {
@@ -105,6 +116,7 @@ export async function chatStream({
         const evt = JSON.parse(raw)
         if (evt.text !== undefined) onText?.(evt.text)
         if (evt.tool_call !== undefined) onToolCall?.(evt.tool_call)
+        if (evt.booking_data !== undefined) onBookingData?.(evt.booking_data)
       } catch { /* skip malformed */ }
     }
   }
@@ -129,6 +141,22 @@ export async function fetchWeather(city, countryCode = '') {
   } catch {
     return null
   }
+}
+
+// ── Post-trip debrief ────────────────────────────────────────────────────────
+
+/**
+ * Persist a post-trip debrief and trigger preference extraction.
+ * Resolves to { ok: true } on success, or throws on error.
+ */
+export async function saveDebrief(tripId, debriefText) {
+  const res = await fetch(`${BASE}/trips/${tripId}/debrief`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ debrief_text: debriefText }),
+  })
+  if (!res.ok) throw new Error('Failed to save debrief')
+  return res.json()
 }
 
 // ── Extraction ───────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { Plane, Send, Save } from 'lucide-react'
-import { extractInfo, saveTrip, updateTrip } from '@/lib/api'
+import { extractInfo, listTrips, saveTrip, updateTrip } from '@/lib/api'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { Button } from '@/components/ui/Button'
@@ -77,6 +77,21 @@ export default function PlanTrip() {
     notes: '',
   })
 
+  // Past trip preferences — loaded once, injected into planning prompts
+  const [pastPreferences, setPastPreferences] = useState([])
+  useEffect(() => {
+    listTrips()
+      .then(trips => {
+        const prefs = trips
+          .filter(t => t.preferences?.length > 0)
+          .flatMap(t => t.preferences)
+        // Deduplicate and cap to avoid bloating the prompt
+        const unique = [...new Set(prefs)].slice(0, 10)
+        setPastPreferences(unique)
+      })
+      .catch(() => {})
+  }, [])
+
   // Conversation state
   const [started, setStarted]           = useState(false)
   const [messages, setMessages]         = useState([])
@@ -87,9 +102,10 @@ export default function PlanTrip() {
   const [draftSaved, setDraftSaved]     = useState(false)
   // True once Marco has written a full day-by-day itinerary — shows the Save button
   const [itineraryReady, setItineraryReady] = useState(false)
-  const responseRef  = useRef('')
-  const draftIdRef   = useRef(null)   // persists across renders without causing re-renders
-  const draftMetaRef = useRef(null)   // base trip metadata for updates
+  const responseRef      = useRef('')
+  const draftIdRef       = useRef(null)   // persists across renders without causing re-renders
+  const draftMetaRef     = useRef(null)   // base trip metadata for updates
+  const bookingDataRef   = useRef({})     // accumulated booking data (hotel suggestions, etc.)
   const bottomRef    = useRef(null)
   const inputRef     = useRef(null)
 
@@ -153,6 +169,9 @@ export default function PlanTrip() {
         : form.hasFourWheelerLicence ? "I have a four-wheeler (car) driving licence."
         : '',
       form.notes ? `Extra notes: ${form.notes}` : '',
+      pastPreferences.length > 0
+        ? `Based on my past trips, here are my known travel preferences: ${pastPreferences.join('; ')}.`
+        : '',
     ].filter(Boolean).join(' ')
   }
 
@@ -171,6 +190,9 @@ export default function PlanTrip() {
         responseRef.current += chunk
         setStreamText(responseRef.current)
       },
+      onBookingData: (data) => {
+        bookingDataRef.current = { ...bookingDataRef.current, ...data }
+      },
       onDone: () => {
         const assistantMsg = { role: 'assistant', content: responseRef.current }
         const finalMessages = [...withUser, assistantMsg]
@@ -188,7 +210,7 @@ export default function PlanTrip() {
         // Auto-persist as draft after every turn (fire-and-forget — onDone isn't
         // awaited by useSSEChat so we use .then() to keep intent clear).
         const meta = draftMetaRef.current ?? buildDraftMeta()
-        const tripWithMessages = { ...meta, messages: finalMessages }
+        const tripWithMessages = { ...meta, ...bookingDataRef.current, messages: finalMessages }
 
         if (!draftIdRef.current) {
           saveTrip(tripWithMessages)
@@ -213,6 +235,7 @@ export default function PlanTrip() {
       const base = draftMetaRef.current ?? buildDraftMeta()
       const tripData = {
         ...base,
+        ...bookingDataRef.current,
         destination: extracted.destination || form.destination,
         dates: `${form.startDate} to ${form.endDate}`,
         start_date: extracted.start_date || form.startDate,

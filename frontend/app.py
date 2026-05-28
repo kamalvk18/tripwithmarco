@@ -339,6 +339,7 @@ elif st.session_state.view_mode == "plan":
                 st.session_state.messages = [{"role": "user", "content": prompt}]
                 st.session_state.trip_data = {
                     "destination": destination,
+                    "origin": origin,
                     "start_date": str(start_date),
                     "end_date": str(end_date),
                     "dates": f"{start_date} to {end_date}",

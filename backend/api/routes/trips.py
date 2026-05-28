@@ -151,6 +151,39 @@ def toggle_checklist_item(trip_id: str, item_id: str, completed: bool = False):
     return OkResponse()
 
 
+# ── Partial field patch ───────────────────────────────────────────────────────
+
+@router.patch("/{trip_id}", response_model=OkResponse)
+def patch_trip_fields(trip_id: str, updates: dict = Body(...)):
+    """
+    Apply partial updates to a trip without requiring the full trip body.
+    Reads the current trip from disk, merges updates, and saves.
+    Safer than PUT when only a single field needs changing.
+    """
+    trip = _get_or_404(trip_id)
+    trip.update(updates)
+    update_trip(trip_id, trip)
+    return OkResponse()
+
+
+# ── Post-trip debrief ─────────────────────────────────────────────────────────
+
+class DebriefRequest(BaseModel):
+    debrief_text: str
+
+
+@router.post("/{trip_id}/debrief", response_model=OkResponse)
+def save_debrief(trip_id: str, body: DebriefRequest):
+    """Persist a post-trip debrief and extract travel preference signals."""
+    from backend.agents.planning_agent import extract_preferences
+    trip = _get_or_404(trip_id)
+    preferences = extract_preferences(body.debrief_text)
+    trip["debrief"] = body.debrief_text
+    trip["preferences"] = preferences
+    update_trip(trip_id, trip)
+    return OkResponse()
+
+
 # ── Email briefing config ─────────────────────────────────────────────────────
 
 class EmailConfigRequest(BaseModel):

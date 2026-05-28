@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import {
   RefreshCw, Navigation, RotateCcw, Download,
-  Calendar, FileText, Wifi, Trash2, ArrowLeft,
+  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed,
 } from 'lucide-react'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
+import { saveDebrief, patchTrip } from '@/lib/api'
 import { useTrip } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { useWeatherCache } from '@/hooks/useWeatherCache'
+import { useNearMe } from '@/hooks/useNearMe'
 import { DayCard } from '@/components/DayCard'
 import { BudgetPanel } from '@/components/BudgetPanel'
 import { ChatPanel } from '@/components/ChatPanel'
@@ -29,20 +31,29 @@ export default function TripView() {
     messages, itinerary, days,
     status, label, dayNum,
     saveMessages, updateSpending, updateChecklist, updateEmailConfig,
-    updateDayOverride, remove,
+    updateDayOverride, updateDebrief, updateNearMe, getCachedNearMeResponse, remove,
   } = useTrip(id)
 
   // ── UI-only state ──────────────────────────────────────────────────────────
   const { streaming, toolStatus, send } = useSSEChat()
   const { getWeather } = useWeatherCache()
 
+  const { locate, locating } = useNearMe()
+
   const [showCompanion, setShowCompanion] = useState(false)
   const [weatherText, setWeatherText]     = useState(null)
   const [rebuilding, setRebuilding]       = useState(false)
   const [rebuildText, setRebuildText]     = useState('')
+  const [nearMeActive, setNearMeActive]     = useState(false)
+  const [nearMeText, setNearMeText]         = useState('')
+  const [nearMeDismissed, setNearMeDismissed] = useState(false)
+  const [debriefing, setDebriefing]       = useState(false)
+  const [debriefText, setDebriefText]     = useState('')
   const [showExport, setShowExport]       = useState(false)
   const [emailPanelOpen, setEmailPanelOpen] = useState(false)
-  const rebuildRef = useRef('')
+  const rebuildRef  = useRef('')
+  const nearMeRef   = useRef('')
+  const debriefRef  = useRef('')
 
   // ── Loading / not-found guards ─────────────────────────────────────────────
   if (loading) {
@@ -96,6 +107,69 @@ export default function TripView() {
         await updateDayOverride(dayNum, rebuildRef.current)
         setRebuilding(false)
         setRebuildText('')
+      },
+    })
+  }
+
+  // ── Near Me ───────────────────────────────────────────────────────────────
+  async function handleNearMe(force = false) {
+    setNearMeDismissed(false)
+
+    // getCachedNearMeResponse reads from the module-level tripCache which is updated
+    // synchronously inside patch() — always current, never affected by stale closures.
+    const cached = getCachedNearMeResponse()
+    if (!force && cached) {
+      setNearMeText(cached)
+      return
+    }
+
+    setNearMeActive(true)
+    nearMeRef.current = ''
+    setNearMeText('')
+
+    const loc = await locate()
+    if (!loc) { setNearMeActive(false); return }
+
+    const prompt = `I'm currently at ${loc.display}. Based on today's itinerary, which activities or places are closest to where I am right now? What should I do next? Give me 2-3 specific, actionable options — keep it short and punchy.`
+
+    await send({
+      messages: [...messages, { role: 'user', content: prompt }],
+      tripData,
+      companionMode: true,
+      onChunk: chunk => {
+        nearMeRef.current += chunk
+        setNearMeText(nearMeRef.current)
+      },
+      onDone: () => {
+        setNearMeActive(false)
+        updateNearMe(nearMeRef.current)
+      },
+    })
+  }
+
+  // ── Post-trip debrief ─────────────────────────────────────────────────────
+  async function handleDebrief() {
+    setDebriefing(true)
+    setDebriefText('')
+    debriefRef.current = ''
+
+    const prompt = `This trip to ${tripData.destination} is now over — time for an honest debrief. Looking back at everything we planned and all our conversations: what worked really well about this itinerary, what would you change if we did it again, and what have you noticed about how I actually travel? Be specific about my preferences. Keep it under 250 words, no fluff.`
+
+    await send({
+      messages: [...messages, { role: 'user', content: prompt }],
+      tripData,
+      companionMode: false,
+      onChunk: chunk => {
+        debriefRef.current += chunk
+        setDebriefText(debriefRef.current)
+      },
+      onDone: async () => {
+        setDebriefing(false)
+        // Save debrief + extract preferences via backend
+        try {
+          await saveDebrief(id, debriefRef.current)
+          updateDebrief(debriefRef.current)
+        } catch { /* non-critical — debrief text is still shown */ }
       },
     })
   }
@@ -180,7 +254,28 @@ export default function TripView() {
               {rebuilding ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw size={14} />}
               Rebuild Today
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleNearMe()}
+              disabled={locating || nearMeActive || streaming}
+              title="Find activities near your current location"
+            >
+              {locating || nearMeActive
+                ? <Spinner className="w-3.5 h-3.5" />
+                : <LocateFixed size={14} />}
+              Near Me
+            </Button>
           </>
+        )}
+        {status === 'past' && !tripData.debrief && (
+          <Button
+            variant="secondary"
+            onClick={handleDebrief}
+            disabled={debriefing || streaming}
+          >
+            {debriefing ? <Spinner className="w-3.5 h-3.5" /> : '📋'}
+            {debriefing ? 'Getting debrief…' : 'Post-Trip Debrief'}
+          </Button>
         )}
         <Button variant="secondary" onClick={handleRegenerate}>
           <RotateCcw size={14} /> Regenerate Plan
@@ -316,6 +411,88 @@ export default function TripView() {
         </div>
       )}
 
+      {/* Debrief — streaming output */}
+      {debriefing && (
+        <div className="rounded-xl border border-violet-700/50 bg-violet-950/20 p-5 mb-6">
+          <div className="flex items-center gap-2 text-sm text-violet-300 mb-3">
+            <Spinner className="w-4 h-4" />
+            {toolStatus ?? 'Marco is writing your debrief…'}
+          </div>
+          {debriefText && (
+            <div className="prose prose-sm max-w-none text-slate-200 streaming-cursor">
+              <ReactMarkdown>{debriefText}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Debrief — persisted display */}
+      {!debriefing && tripData.debrief && (
+        <div className="rounded-xl border border-violet-700/40 bg-violet-950/20 p-5 mb-6">
+          <p className="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-3">
+            📋 Post-Trip Debrief
+          </p>
+          <div className="prose prose-sm max-w-none text-slate-300">
+            <ReactMarkdown>{tripData.debrief}</ReactMarkdown>
+          </div>
+          {tripData.preferences?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-violet-700/30">
+              <p className="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-2">
+                Your travel preferences
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {tripData.preferences.map((pref, i) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 rounded-full text-xs border border-violet-600/40 bg-violet-900/20 text-violet-200"
+                  >
+                    {pref}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Near Me — streaming + persisted */}
+      {!nearMeDismissed && (nearMeActive || nearMeText || tripData.near_me_response) && (
+        <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/20 p-5 mb-6">
+          <div className="flex items-center justify-between gap-2 text-sm text-emerald-300 mb-3">
+            <div className="flex items-center gap-2">
+              {nearMeActive
+                ? <><Spinner className="w-4 h-4" /> {locating ? 'Getting your location…' : (toolStatus ?? "Finding what's near you…")}</>
+                : <><LocateFixed size={14} /> What's near you</>
+              }
+            </div>
+            {!nearMeActive && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleNearMe(true)}
+                  disabled={streaming}
+                  className="text-xs text-emerald-600 hover:text-emerald-400 transition-colors cursor-pointer"
+                >
+                  <RefreshCw size={12} className="inline mr-1" />refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNearMeDismissed(true)}
+                  className="text-xs text-emerald-600 hover:text-emerald-400 transition-colors cursor-pointer"
+                >
+                  dismiss
+                </button>
+              </div>
+            )}
+          </div>
+          {(nearMeText || tripData.near_me_response) && (
+            <div className={`prose prose-sm max-w-none text-slate-200 ${nearMeActive ? 'streaming-cursor' : ''}`}>
+              <ReactMarkdown>{nearMeText || tripData.near_me_response}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Day cards */}
       {days.length > 0 ? (
         <div className="flex flex-col gap-3 mb-8">
@@ -328,6 +505,7 @@ export default function TripView() {
               }}
               isToday={day.num === dayNum}
               isRebuilt={!!tripData.day_overrides?.[String(day.num)]}
+              destination={tripData.city || tripData.destination}
             />
           ))}
         </div>
@@ -338,6 +516,58 @@ export default function TripView() {
           </div>
         </div>
       )}
+
+      {/* Booking links */}
+      {(() => {
+        const dest   = tripData.destination ?? ''
+        const origin = tripData.origin ?? ''
+        const start  = tripData.start_date ?? ''
+        const end    = tripData.end_date ?? ''
+        if (!dest || !start || !end) return null
+
+        const enc = encodeURIComponent
+        const links = [
+          ...(origin ? [{
+            label: 'Search Flights',
+            url: `https://www.google.com/travel/flights?q=flights+from+${enc(origin)}+to+${enc(dest)}+${start}+to+${end}`,
+          }] : []),
+          ...(tripData.hotel_suggestions?.length > 0
+            ? tripData.hotel_suggestions.map(h => ({
+                label: h.name,
+                url: `https://www.booking.com/searchresults.html?ss=${enc(`${h.name} ${h.destination}`)}&checkin=${h.check_in}&checkout=${h.check_out}&group_adults=1`,
+              }))
+            : [{
+                label: 'Search Hotels',
+                url: `https://www.booking.com/searchresults.html?ss=${enc(dest)}&checkin=${start}&checkout=${end}&group_adults=1`,
+              }]
+          ),
+          {
+            label: 'Airbnb',
+            url: `https://www.airbnb.com/s/${enc(dest)}/homes?checkin=${start}&checkout=${end}&adults=1`,
+          },
+        ]
+
+        return (
+          <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] p-4 mb-6">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Book Your Trip</p>
+            <div className="flex flex-wrap gap-2">
+              {links.map(({ label, url }) => (
+                <a
+                  key={label}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+                    bg-[#22263a] border border-[#2e3248] text-slate-300
+                    hover:border-indigo-500/60 hover:text-indigo-300 transition-colors"
+                >
+                  {label} <ExternalLink size={12} className="opacity-60" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Companion / Chat panel */}
       {showCompanion && status === 'active' ? (

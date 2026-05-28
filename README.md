@@ -10,17 +10,22 @@ An AI-powered travel planning app built around **Marco** — a brutally honest, 
 - **Conversational trip form** — destination, origin, dates, budget, travel style, dietary needs, and driver's licence; Marco handles the rest
 - **Real-time data** — live flights (Google Flights via SerpApi), hotels, restaurants, attractions, and 5-day weather forecasts all fetched during planning
 - **Agentic tool use** — Claude autonomously decides when to search flights, hotels, weather, or local spots; live status messages ("✈️ Checking flights…") stream to the UI as it works
-- **Day-by-day itinerary** — full trip broken into expandable day cards; today's card is highlighted automatically
+- **Day-by-day itinerary** — full trip broken into expandable day cards with a timeline view (Morning / Afternoon / Evening / Night slots); today's card is highlighted automatically
 - **Budget overview** — per-category cost breakdown (flights, accommodation, food, activities, transport) extracted from the itinerary; over-budget warning shown when Marco's estimate exceeds your stated budget
+- **Booking links** — direct links to Google Flights, Booking.com (using Marco's hotel suggestions when available), and Airbnb, pre-filled with your dates
 
 ### During the Trip
 - **Companion mode** — once your trip is active, Marco switches into a short, punchy, weather-aware mode; leads with today's forecast and proactively restructures the plan if needed
 - **Rebuild Today** — regenerates just today's day plan around current live weather without touching the rest of the itinerary; rebuilt days are stored as overrides and shown with a 🔄 badge
+- **Near Me** — uses browser geolocation to find which activities from today's itinerary are closest to your current position and suggests what to do next; response is cached so re-tapping from the same spot skips the LLM call; dismiss to hide or refresh for a new response
 - **Expense tracker** — log real spending per category (flights, accommodation, food, activities, transport, misc) tracked against Marco's estimates; running total vs. budget shown at a glance
 - **Daily briefing email** — optional morning email each trip day with weather, today's plan, and remaining budget; configure once, delivered automatically
 
 ### Before the Trip
 - **Pre-trip checklist** — auto-generated from destination and passport country: visa requirements, recommended vaccinations, travel insurance, emergency numbers, and packing essentials; items are persistent and checkable
+
+### After the Trip
+- **Post-trip debrief** — once the trip ends, Marco reviews the entire conversation, gives an honest assessment of the itinerary, and extracts personal travel preference signals ("loved street food, hated tourist traps") stored against your profile to inform future planning
 
 ### Export & Offline
 - **Markdown export** — full itinerary as `.md` for Notion, Obsidian, or any notes app
@@ -31,6 +36,7 @@ An AI-powered travel planning app built around **Marco** — a brutally honest, 
 - **React + Vite frontend** — fast SPA with SSE streaming, collapsible panels, and Tailwind CSS dark theme
 - **FastAPI REST layer** — full REST API (`/api/trips` CRUD, `/api/chat/stream`, `/api/chat/weather`, and more); Swagger docs at `/docs`
 - **Client-side weather cache** — weather is fetched once per city per hour in the browser and injected into companion-mode requests, avoiding redundant OpenWeather calls
+- **Near Me cache** — LLM response is cached in the trip record; re-clicking from the same location returns instantly without an API call
 - **Trip persistence** — all trips saved locally as JSON; reload and resume any conversation at any time
 - **CI** — GitHub Actions runs the full test suite on every push
 
@@ -42,7 +48,8 @@ An AI-powered travel planning app built around **Marco** — a brutally honest, 
 ┌────────────────────────────────────────┐
 │   React SPA (Vite)                     │  frontend/src/
 │   pages/: Home, PlanTrip, TripView     │
-│   hooks/: useSSEChat, useWeatherCache  │
+│   hooks/: useSSEChat, useTrip,         │
+│           useWeatherCache, useNearMe   │
 │   lib/api.js — HTTP client             │
 └──────────────────┬─────────────────────┘
                    │ HTTP (SSE + REST)
@@ -55,6 +62,7 @@ An AI-powered travel planning app built around **Marco** — a brutally honest, 
 │   /api/chat/extract                    │
 │   /api/trips/{id}/expenses             │
 │   /api/trips/{id}/checklist            │
+│   /api/trips/{id}/debrief              │
 │   /api/trips/{id}/email-config         │
 │   /api/trips/{id}/send-briefing        │
 │   /api/send-briefings  (cron job)      │
@@ -84,7 +92,7 @@ An AI-powered travel planning app built around **Marco** — a brutally honest, 
 | Layer | Technology |
 |---|---|
 | LLM — Planning & Companion | Claude Sonnet 4.5 (streaming, tool use) |
-| LLM — Extraction | Claude Haiku 4.5 (trip details, budget breakdown) |
+| LLM — Extraction | Claude Haiku 4.5 (trip details, budget breakdown, preferences) |
 | Frontend | React 19 + Vite + Tailwind CSS v4 |
 | API | FastAPI + Uvicorn |
 | External Data | SerpApi (flights, hotels, places), OpenWeather API |
@@ -163,6 +171,7 @@ uv run main.py --api           # FastAPI serves the built SPA from /
 Once today's date falls within your trip dates:
 - **🧭 Companion Mode** — Marco switches to short, weather-aware advice; fetches live weather once and caches it for the session
 - **Rebuild Today** — completely regenerates today's day plan around current weather; rebuilt version shown with a 🔄 badge
+- **Near Me** — click to find activities near your current location; dismiss to hide the panel, refresh to get a new response; re-clicking from the same spot uses the cached response instantly
 
 ### Expense Tracker
 - Log spending per category as you go; Marco's budget estimates shown alongside for comparison
@@ -171,6 +180,11 @@ Once today's date falls within your trip dates:
 ### Pre-trip Checklist
 - Click **Generate Checklist** — Marco produces a personalised checklist covering visa, health, insurance, documents, and kit based on your destination and passport country
 - Check off items as you prepare; state is persisted
+
+### Post-trip Debrief
+- Once the trip is marked as past, click **Post-Trip Debrief**
+- Marco reviews the full conversation and gives an honest assessment: what worked, what didn't, and what it noticed about how you actually travel
+- Extracted preference signals (e.g. "prefers street food over restaurants") are saved and will inform future trip planning
 
 ### Daily Briefing Email
 - On any upcoming or active trip, click **"Get Marco's daily briefing in your inbox"**
@@ -206,7 +220,7 @@ solo_travel_agent/
 │   │   │   └── TripView.jsx         # Full trip view (all panels)
 │   │   ├── components/
 │   │   │   ├── ChatPanel.jsx        # Collapsible Ask Marco / Companion chat
-│   │   │   ├── DayCard.jsx          # Expandable day section with override badge
+│   │   │   ├── DayCard.jsx          # Expandable day card with timeline view + override badge
 │   │   │   ├── BudgetPanel.jsx      # Budget breakdown vs. estimate
 │   │   │   ├── ExpenseTracker.jsx   # Real spending log
 │   │   │   ├── ChecklistPanel.jsx   # Pre-trip checklist
@@ -214,10 +228,13 @@ solo_travel_agent/
 │   │   │   └── ui/                  # Badge, Button, Card, Spinner
 │   │   ├── hooks/
 │   │   │   ├── useSSEChat.js        # SSE streaming + tool-status state
-│   │   │   └── useWeatherCache.js   # Module-level 1-hour weather cache
+│   │   │   ├── useTrip.js           # Trip data, derived state, and all persistence actions
+│   │   │   ├── useWeatherCache.js   # Module-level 1-hour weather cache
+│   │   │   └── useNearMe.js         # Browser geolocation + Nominatim reverse geocoding
 │   │   └── lib/
 │   │       ├── api.js               # HTTP client for all backend calls
 │   │       ├── utils.js             # extractAllDays, tripStatus, formatMoney
+│   │       ├── parseTimeline.js     # Parses day content into Morning/Afternoon/Evening slots
 │   │       └── exports.js           # buildMarkdown, buildICS, buildOfflineHTML
 │   ├── package.json
 │   └── vite.config.js
@@ -236,7 +253,7 @@ solo_travel_agent/
 │   │   ├── app.py                   # FastAPI app factory + CORS + SPA serving
 │   │   ├── schemas.py               # Pydantic request/response models
 │   │   └── routes/
-│   │       ├── trips.py             # Trip CRUD + expenses + checklist + email config
+│   │       ├── trips.py             # Trip CRUD + expenses + checklist + debrief + email config
 │   │       └── chat.py              # SSE stream, sync chat, weather, extract
 │   ├── db/
 │   │   └── trip_store.py            # JSON file-based trip persistence
@@ -286,14 +303,11 @@ To adjust Marco's behaviour, edit `backend/prompts/marco.md` — changes take ef
 Features planned but not yet implemented, roughly in priority order:
 
 ### Medium priority
-- **"What's near me?" mode** — when on an active trip, use browser geolocation to show the nearest activities from the itinerary or suggest alternatives based on current position
-- **Post-trip debrief** — after trip ends, Marco reviews the original plan vs. what actually happened, extracts preference signals ("loved the food scene, hated crowded museums"), and stores them to inform future planning
-- **Day timeline view** — hour-by-hour visual timeline for each day (09:00 → activity → 12:30 → lunch → 14:00 → activity) rather than a text block
 - **Budget reality check during planning** — use actual prices from flight/hotel tool results to validate the budget before generating the full itinerary, rather than estimating afterwards
+- **Shareable trip links** — generate a read-only public link to share an itinerary
 
 ### Larger features
 - **Authentication** — simple user accounts so multiple people can use the same deployment without data mixing
 - **Docker + deployment** — `Dockerfile` + `docker-compose.yml` for hosting on Fly.io, Railway, or Render
 - **Multi-city / multi-leg trips** — support trips with multiple destinations (Amsterdam → Berlin → Prague), with inter-city transport planning
 - **Direct booking API integration** — replace SerpApi with Amadeus (flights) and direct hotel APIs for richer data and no 100 searches/month limit
-- **Shareable trip links** — generate a read-only public link to share an itinerary

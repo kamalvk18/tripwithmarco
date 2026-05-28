@@ -120,6 +120,11 @@ export function useTrip(id) {
     updateDayOverride: (num, text) => patch({
       day_overrides: { ...(tripData?.day_overrides ?? {}), [String(num)]: text },
     }),
+    updateDebrief:     debrief  => patch({ debrief }),
+    updateNearMe:      text     => patch({ near_me_response: text }),
+    // Read near_me_response directly from the module-level cache — always current,
+    // never stale, regardless of React render timing or closure age.
+    getCachedNearMeResponse: () => tripCache.get(id)?.near_me_response ?? '',
     remove: () => {
       tripCache.delete(id)    // evict so a re-visit would fetch fresh (won't happen — trip is gone)
       return deleteTrip(id)

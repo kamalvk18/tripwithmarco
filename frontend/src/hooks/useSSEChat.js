@@ -29,6 +29,7 @@ export function useSSEChat() {
     onChunk,
     onDone,
     onError,
+    onBookingData,
   }) => {
     abort()   // cancel any previous stream
     const controller = new AbortController()
@@ -49,6 +50,7 @@ export function useSSEChat() {
         onToolCall: (name) => {
           setToolStatus(toolLabel(name))
         },
+        onBookingData,
       })
       onDone?.()
     } catch (err) {

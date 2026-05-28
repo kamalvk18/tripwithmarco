@@ -268,7 +268,7 @@ def get_trip_day(start_date_str: str, end_date_str: str) -> dict:
         }
 
 
-def run_agentic_loop(messages: list, system: str, on_tool_call=None):
+def run_agentic_loop(messages: list, system: str, on_tool_call=None, collected: dict | None = None):
     """
     Core agentic loop — handles tool use automatically.
     Yields text chunks as they stream from Claude.
@@ -279,6 +279,8 @@ def run_agentic_loop(messages: list, system: str, on_tool_call=None):
         on_tool_call: Optional callable(tool_name: str, tool_input: dict) fired
                       just before each tool is executed. Use it to surface live
                       progress in a UI (e.g., update an st.empty() container).
+        collected:    Optional mutable dict; tool results (e.g. hotel suggestions)
+                      are written here so callers can surface them in the UI.
     """
 
     current_messages = messages.copy()
@@ -312,7 +314,7 @@ def run_agentic_loop(messages: list, system: str, on_tool_call=None):
                     print(f"🔧 Marco is using tool: {block.name} with {block.input}")
                     if on_tool_call is not None:
                         on_tool_call(block.name, block.input)
-                    result = execute_tool(block.name, block.input)
+                    result = execute_tool(block.name, block.input, collected=collected)
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
@@ -328,7 +330,7 @@ def run_agentic_loop(messages: list, system: str, on_tool_call=None):
             return
 
 
-def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, on_tool_call=None):
+def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, on_tool_call=None, collected: dict | None = None):
     """Send a message to Marco and get a streaming response."""
 
     today = datetime.now().strftime("%A, %B %d, %Y")
@@ -386,7 +388,7 @@ Ask how yesterday went if it's Day 2+."""
 {weather_text}
 Use this to adjust today's plan. Don't mention you fetched it — just act on it."""
 
-    yield from run_agentic_loop(messages, system_with_context, on_tool_call=on_tool_call)
+    yield from run_agentic_loop(messages, system_with_context, on_tool_call=on_tool_call, collected=collected)
 
 def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:
     """
@@ -473,6 +475,42 @@ Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any oth
                 {"category": "visa", "item": f"Check visa requirements for {destination}", "priority": "high"},
             ]
         return fallback
+
+
+def extract_preferences(debrief_text: str) -> list[str]:
+    """
+    Use Haiku to extract 3-6 concrete travel preference signals from a post-trip debrief.
+    Returns a list of short strings, e.g. ["Prefers street food over restaurants", ...].
+    Falls back to [] on any error.
+    """
+    if not debrief_text:
+        return []
+    try:
+        response = client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=256,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Extract 3-6 specific travel preference signals from this post-trip debrief. "
+                    "Each should be a short, concrete statement (under 10 words) about the traveller's likes, "
+                    "dislikes, or patterns — things that should inform future trip planning.\n"
+                    'Return ONLY a JSON array of strings. Example: '
+                    '["Prefers local food markets over sit-down restaurants", '
+                    '"Dislikes crowded tourist sites", '
+                    '"Loves half-day hikes with a view"]\n\n'
+                    f"Debrief:\n{debrief_text}"
+                ),
+            }],
+        )
+        raw = response.content[0].text.strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        result = json.loads(raw)
+        return [str(p) for p in result if isinstance(p, str)]
+    except Exception as exc:
+        print(f"extract_preferences error: {exc}")
+        return []
 
 
 if __name__ == "__main__":

@@ -37,8 +37,12 @@ async def _sse_stream(messages: list, trip_data: dict | None, companion_mode: bo
     clients can display live status (e.g. "Checking flights...") without
     polling. Events are emitted before the text chunk that follows the tool
     result, so they arrive a few tokens early — good enough for a status label.
+
+    After the stream finishes a single booking_data event is emitted if any
+    hotel suggestions were collected during tool calls.
     """
     tool_queue: queue.Queue[str] = queue.Queue()
+    collected: dict = {}
 
     def on_tool_call(tool_name: str, _: dict) -> None:
         """Called from the threadpool thread — push the name into the queue."""
@@ -50,6 +54,7 @@ async def _sse_stream(messages: list, trip_data: dict | None, companion_mode: bo
         trip_data=trip_data,
         companion_mode=companion_mode,
         on_tool_call=on_tool_call,
+        collected=collected,
     )
 
     async for chunk in iterate_in_threadpool(gen):
@@ -69,6 +74,9 @@ async def _sse_stream(messages: list, trip_data: dict | None, companion_mode: bo
             yield f"data: {json.dumps({'tool_call': tool_name})}\n\n"
         except queue.Empty:
             break
+
+    if collected:
+        yield f"data: {json.dumps({'booking_data': collected})}\n\n"
 
     yield "data: [DONE]\n\n"
 

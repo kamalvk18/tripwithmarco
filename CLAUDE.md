@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Solo Travel Agent is a Streamlit + Anthropic Claude app. The AI persona "Marco" plans trips and acts as a real-time travel companion. The app uses an agentic loop where Claude autonomously calls tools (flights, hotels, places, weather) to ground its itineraries in live data.
+Solo Travel Agent is a React + FastAPI + Anthropic Claude app. The AI persona "Marco" plans trips and acts as a real-time travel companion. The app uses an agentic loop where Claude autonomously calls tools (flights, hotels, places, weather) to ground its itineraries in live data.
 
 ## Development Commands
 
@@ -10,9 +10,15 @@ Solo Travel Agent is a Streamlit + Anthropic Claude app. The AI persona "Marco" 
 # Install dependencies (uses uv, not pip)
 uv sync
 
-# Run the app (two equivalent ways)
-streamlit run frontend/app.py
-uv run main.py
+# Run API server only
+uv run main.py --api          # http://localhost:8000 — docs at /docs
+uvicorn backend.api.app:app --reload --port 8000   # direct
+
+# Run React dev server only (requires API running separately)
+uv run main.py --ui           # http://localhost:5173
+
+# Run both together (recommended for local dev)
+uv run main.py --both
 
 # Run tests (no API keys required)
 uv run pytest tests/ -v
@@ -31,19 +37,22 @@ uv add --dev <package>
 
 ### Two Models in Use
 - **claude-sonnet-4-5-20250929** — All planning and companion responses (streaming)
-- **claude-haiku-4-5-20251001** — Quick extraction tasks: `extract_trip_details()` only. Do not use Haiku for anything requiring high-quality output.
+- **claude-haiku-4-5-20251001** — Quick extraction tasks: `extract_trip_details()` only. Companion mode also uses Haiku (short replies, cost-sensitive). Do not use Haiku for anything requiring high-quality output.
 
 ### Companion Mode Context Injection
 When `companion_mode=True`, `chat()` pre-fetches live weather and injects today's itinerary section directly into the system prompt (not as a user message). This gives Marco context without requiring tool calls at runtime. See `planning_agent.py:chat()`.
 
 ### Persistence
-Trips are plain JSON in `data/trips/{timestamp}.json`. The `messages` array is the full conversation history — the trip JSON IS the conversation. `trip_store.py` is a thin wrapper around `json.load/dump`. No database.
+Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db` on Fly.io). Each row holds indexed summary columns plus a full JSON blob of the trip. The `messages` array inside the blob is the full conversation history — the trip record IS the conversation. `trip_store.py` is the only entry point; no other module touches the DB directly. To swap to Postgres, set `DATABASE_URL=postgresql://...`.
+
+### Tool Result Caching
+`backend/tools/cache.py` caches SerpApi and OpenWeather HTTP responses to disk. TTLs: weather 1h, flights/hotels 6h, places 24h. This only skips external API calls — Claude inference still runs on every request.
 
 ## File Map
 
 | File | Responsibility |
 |---|---|
-| `frontend/app.py` | All Streamlit UI: home, plan form, trip view, companion chat |
+| `frontend/src/` | React app (Vite + TypeScript) |
 | `backend/config.py` | Central constants: model names, token limits, timeouts |
 | `backend/agents/planning_agent.py` | Agentic loop, chat entry point, itinerary/day extraction |
 | `backend/agents/tool_executor.py` | Dispatches tool name → handler, formats result for Claude |
@@ -52,9 +61,12 @@ Trips are plain JSON in `data/trips/{timestamp}.json`. The `messages` array is t
 | `backend/tools/hotels.py` | SerpApi Google Hotels query + parse + format |
 | `backend/tools/places.py` | SerpApi Google Local query + parse + format |
 | `backend/tools/weather.py` | OpenWeather geo + forecast query + format |
-| `backend/db/trip_store.py` | save/load/list/update/delete trip JSON files |
+| `backend/tools/cache.py` | Disk cache for external API calls (TTL-based) |
+| `backend/db/database.py` | SQLAlchemy engine, session factory, `init_db()` |
+| `backend/db/models.py` | `Trip` SQLAlchemy model |
+| `backend/db/trip_store.py` | save/load/list/update/delete + JSON migration |
 | `backend/prompts/marco.md` | Marco's system prompt — personality, modes, tool usage rules |
-| `backend/api/app.py` | FastAPI app factory, CORS, route registration |
+| `backend/api/app.py` | FastAPI app factory, auth middleware, CORS, route registration |
 | `backend/api/schemas.py` | Pydantic request/response models |
 | `backend/api/routes/trips.py` | Trip CRUD endpoints |
 | `backend/api/routes/chat.py` | SSE streaming + sync chat endpoints |
@@ -74,34 +86,28 @@ Trips are plain JSON in `data/trips/{timestamp}.json`. The `messages` array is t
 Required in `.env`:
 - `ANTHROPIC_API_KEY` — Claude API
 - `OPENWEATHER_API_KEY` — Free tier at openweathermap.org
-- `SERPAPI_KEY` — Free tier: 100 searches/month
+- `SERPAPI_KEY` — Free tier: 250 searches/month
+
+Optional:
+- `DATABASE_URL` — SQLAlchemy URL (defaults to `sqlite:///data/trips.db`; set to `postgresql://...` for Postgres)
+- `DB_FILE` — SQLite file path (defaults to `data/trips.db`; Fly.io uses `/data/trips.db`)
+- `AUTH_USER` / `AUTH_PASS` — Enable HTTP Basic Auth (leave unset for local dev)
+- `CRON_SECRET` — Protects the `/api/send-briefings` cron endpoint
 
 ## Itinerary Parsing
 
-`extract_all_days()` in `planning_agent.py` uses regex to split itinerary text into day objects. It handles markdown headers (`# Day 1`, `**Day 1**`, `Day 1:`, etc.). The day content is displayed in Streamlit expanders. If Marco's output format changes significantly, this regex may need updating.
+`extract_all_days()` in `planning_agent.py` uses regex to split itinerary text into day objects. It handles markdown headers (`# Day 1`, `**Day 1**`, `Day 1:`, etc.). If Marco's output format changes significantly, this regex may need updating.
 
 ## FastAPI Layer
 
-`backend/api/app.py` is the FastAPI application. Start it with:
-
-```bash
-uv run main.py --api          # via entry point
-uvicorn backend.api.app:app --reload --port 8000   # direct
-```
-
-Swagger docs at `http://localhost:8000/docs`.
-
-**Routes:**
-- `GET /health` — liveness check
-- `GET/POST/PUT/DELETE /api/trips[/{id}]` — trip CRUD
-- `POST /api/chat` — non-streaming (returns full JSON)
-- `POST /api/chat/stream` — SSE streaming (yields `data: {"text": "..."}` chunks, ends with `data: [DONE]`)
+`backend/api/app.py` is the FastAPI application. Swagger docs at `http://localhost:8000/docs`.
 
 The streaming endpoint wraps the sync `chat()` generator using `starlette.concurrency.iterate_in_threadpool` so it doesn't block the event loop. All trip and chat logic still flows through `planning_agent.py:chat()` — the API layer adds no business logic.
 
+On startup, the lifespan handler: creates DB tables → migrates any legacy JSON files → seeds demo trips.
+
 ## Known Limitations
 
-- No authentication — all trips are accessible to anyone with filesystem access
-- `data/trips/` grows indefinitely; no cleanup
-- SerpApi free tier is 100 searches/month — budget searches carefully in dev
+- `data/` grows indefinitely (SQLite DB + cache files); no automatic cleanup
+- SerpApi free tier is 250 searches/month — budget searches carefully in dev
 - `test.py` uses Google Gemini (unrelated to the main app) — do not treat it as a test suite

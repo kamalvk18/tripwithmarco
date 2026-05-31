@@ -10,7 +10,7 @@ primary_region = 'lhr'
 
 [env]
   PORT = '8080'
-  TRIPS_DIR = '/data/trips'
+  DB_FILE = '/data/trips.db'
 
 [[mounts]]
   source = 'travel_data'

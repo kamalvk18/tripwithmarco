@@ -8,7 +8,7 @@ backend/
 ├── tools/          # External API integrations
 ├── db/             # Trip persistence
 ├── prompts/        # System prompts
-└── api/            # FastAPI routes (empty, not yet used)
+└── api/            # FastAPI routes
 ```
 
 ## Agents
@@ -56,7 +56,13 @@ Two-step: geocode city via OpenWeather Geo API, then fetch 5-day/3-hour forecast
 
 ## DB
 
-`trip_store.py` reads/writes JSON files in `data/trips/`. Trip IDs are timestamp strings (`20260516_225345`). The `messages` field stores the full conversation history. Trips have no schema enforcement — any dict can be saved. `update_trip()` does a full overwrite.
+`trip_store.py` is the only entry point for persistence — no other module touches the DB directly.
+
+- Storage: SQLite via SQLAlchemy (`data/trips.db` locally, `/data/trips.db` on Fly.io). Swap to Postgres with `DATABASE_URL=postgresql://...`.
+- Schema: `Trip` table in `models.py` — indexed summary columns (`trip_id`, `destination`, `start_date`, `end_date`, `saved_at`, `budget`, `currency`) plus a `data TEXT` column holding the full trip JSON blob.
+- Trip IDs are timestamp strings (`20260516_225345`). The `messages` field inside the blob is the full conversation history.
+- `update_trip()` rewrites the JSON blob and syncs the indexed columns. No partial updates at the DB layer — callers load, mutate, then call `update_trip()`.
+- On startup, `migrate_from_json()` imports any legacy `.json` files found in `TRIPS_DIR` and renames them to `.json.migrated`.
 
 ## Prompts
 

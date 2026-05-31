@@ -28,10 +28,10 @@ COPY main.py ./
 # Copy built React app from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Persistent trip storage lives on a Fly volume at /data
-RUN mkdir -p /data/trips
+# Persistent storage lives on a Fly volume at /data
+RUN mkdir -p /data
 
-ENV TRIPS_DIR=/data/trips
+ENV DB_FILE=/data/trips.db
 ENV PORT=8080
 
 EXPOSE 8080

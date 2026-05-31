@@ -12,6 +12,7 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 # ── Token limits ──────────────────────────────────────────────────────────────
 PLANNING_MAX_TOKENS = 4096
+COMPANION_MAX_TOKENS = 1024   # companion replies are short; Haiku is enough
 EXTRACTION_MAX_TOKENS = 256
 
 # ── Tool defaults ─────────────────────────────────────────────────────────────

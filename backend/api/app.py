@@ -82,7 +82,11 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan — email briefings are now triggered externally via /api/send-briefings."""
+    from backend.db.database import init_db
+    from backend.db.trip_store import migrate_from_json, seed_demo_trips
+    init_db()
+    migrate_from_json()
+    seed_demo_trips()
     yield
 
 

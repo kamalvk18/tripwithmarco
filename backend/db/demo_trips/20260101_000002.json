@@ -1,0 +1,123 @@
+{
+  "trip_id": "20260101_000002",
+  "is_demo": true,
+  "destination": "Tokyo, Japan",
+  "city": "Tokyo",
+  "country_code": "JP",
+  "dates": "2026-03-28 to 2026-04-04",
+  "start_date": "2026-03-28",
+  "end_date": "2026-04-04",
+  "origin": "London",
+  "budget": 2500.0,
+  "currency": "EUR",
+  "saved_at": "2026-01-01T00:00:02.000000",
+  "budget_breakdown": {
+    "flights": 820,
+    "accommodation": 560,
+    "food": 360,
+    "activities": 140,
+    "transport": 90,
+    "total_estimated": 1970
+  },
+  "day_overrides": {},
+  "spending": [],
+  "checklist": [
+    {
+      "id": "demo-tky-1",
+      "category": "visa",
+      "item": "Check Japan visa requirements for your passport",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-tky-2",
+      "category": "documents",
+      "item": "Passport valid 6+ months beyond April 4",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-tky-3",
+      "category": "kit",
+      "item": "Get a Suica / PASMO IC card at the airport",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-tky-4",
+      "category": "insurance",
+      "item": "Purchase travel insurance (Japan hospitals expensive for visitors)",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-tky-5",
+      "category": "kit",
+      "item": "Book pocket WiFi or eSIM before departure",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-tky-6",
+      "category": "kit",
+      "item": "Carry cash — many places in Tokyo are cash-only",
+      "completed": true,
+      "priority": "normal"
+    },
+    {
+      "id": "demo-tky-7",
+      "category": "kit",
+      "item": "Download Google Translate with Japanese offline pack",
+      "completed": false,
+      "priority": "normal"
+    }
+  ],
+  "email_config": {},
+  "days": [
+    {
+      "day": 1,
+      "title": "Day 1 (Mar 28) — ARRIVAL & SHINJUKU",
+      "content": "### **Day 1 (Mar 28) — ARRIVAL & SHINJUKU**\n\n**Getting In**\nLondon Heathrow → Tokyo Narita (NRT) — ~12h direct. Take the **Narita Express (N'EX)** to Shinjuku Station (¥3,070, ~80 min). Get your **Suica card** at the airport — loads with ¥2,000 and works on every train/bus/convenience store in Japan.\n\n**Where to Sleep**\nStay in **Shinjuku** for the first 2 nights — central, well-connected, endlessly walkable. Budget ¥8,000-12,000/night (~€50-75) for a clean business hotel or capsule hotel with a private pod.\n\n**Afternoon (if you arrive early enough)**\nDon't fight jet lag — walk it off. **Shinjuku Gyoen** (¥500, closes 4pm) is one of Tokyo's best parks — cherry blossoms if you time it right, always beautiful regardless. Walk through **Takashimaya Times Square** just to feel the scale of a Japanese department store.\n\n**Evening**\n- **Omoide Yokocho** (Memory Lane) — narrow alley behind Shinjuku Station West Exit. Tiny yakitori stalls, smoke, salarymen, cold beer. ~¥2,000-3,000 for a full evening\n- **Kabukicho** for a walk after — Tokyo's entertainment district, more neon than Las Vegas\n- Sleep early: jet lag will claim you regardless\n\n💡 **Marco's tip:** 7-Eleven, FamilyMart and Lawson convenience stores sell genuinely excellent food. Onigiri + hot green tea for ¥300 beats any tourist breakfast."
+    },
+    {
+      "day": 2,
+      "title": "Day 2 (Mar 29) — ASAKUSA & UENO",
+      "content": "### **Day 2 (Mar 29) — ASAKUSA & UENO**\n\n**Morning: Senso-ji Temple, Asakusa**\nTokyo's oldest temple. Go at 7-8am before the crowds. Walk Nakamise Shopping Street for *ningyo-yaki* (sweet red bean cakes), buy *omamori* (charms). The **Kaminarimon Gate** photo is unavoidable — just own it. Free entry.\n\n**Midday: Ueno**\nWalk or short metro to Ueno. Two options:\n- **Tokyo National Museum** (¥1,000) — world's largest collection of Japanese art, allow 2 hours\n- **Ueno Zoo** (¥600) if you want to see the giant pandas\n\n**Lunch: Ueno Ameyoko Market**\nStreet market under the train tracks between Ueno and Okachimachi stations. Fresh seafood on rice, gyoza, yakitori. Budget ¥800-1,200 for a solid lunch.\n\n**Afternoon: Akihabara**\nElectronics, anime, manga, retro games. Even if you're not into the culture, it's worth 2 hours for the sensory overload. Multi-Currency Tax-Free shopping available with your passport. **Super Potato** (6th floor, Sotokanda) is the retro gaming store.\n\n**Evening: Izakaya dinner**\n- Head back to Shinjuku\n- **Torikizoku** chain izakaya: every item ¥298, great quality yakitori\n- Or find a basement izakaya on **Shinjuku-dori** — look for the red lanterns and choose the most crowded one\n\nBudget: ¥3,000-4,000 for food + drinks."
+    },
+    {
+      "day": 3,
+      "title": "Day 3 (Mar 30) — HARAJUKU & SHIBUYA",
+      "content": "### **Day 3 (Mar 30) — HARAJUKU & SHIBUYA**\n\n**Morning: Harajuku**\n- **Meiji Jingu Shrine** — free entry, tranquil forest walk, completely unlike the urban chaos 10 min away\n- **Takeshita Street** after — Tokyo's youth fashion street. Completely absurd, totally worth it. Crêpes obligatory (¥600-800)\n\n**Midday: Omotesando**\nTokyo's equivalent of the Champs-Élysées but better: leafy boulevard, world architecture (Prada by Herzog & de Meuron, Tod's by Toyo Ito), excellent people-watching. **Omotesando Hills** mall (Tadao Ando architect) if you want to go inside.\n\n**Lunch**\n**Afuri** ramen on Omotesando — yuzu shio ramen is one of the best bowls in Tokyo. Expect a short queue. ~¥1,200.\n\n**Afternoon: Shibuya**\n- **Shibuya Scramble Crossing** — cross it, then watch it from above at **Mag's Park** (free) or **Shibuya Sky** observatory (¥2,000, spectacular at dusk)\n- **Shibuya 109** if fashion is your thing\n- Find **Hachiko's statue** — pay your respects to the most loyal dog in history\n\n**Evening: Shimokitazawa**\nTake the Keio Inokashira Line 2 stops to Shimokitazawa — Tokyo's indie neighbourhood. Live music venues, vintage shops, tiny bars, great food. Completely different from the rest of Tokyo. Budget ¥3,000-4,000 for dinner + bar."
+    },
+    {
+      "day": 4,
+      "title": "Day 4 (Mar 31) — TEAMLAB & ODAIBA",
+      "content": "### **Day 4 (Mar 31) — TEAMLAB & ODAIBA**\n\n**Morning: teamLab Planets, Toyosu**\nBook in advance — ¥3,200 online. The immersive digital art experience is genuinely unlike anything else. Go at the 10am opening slot before it gets crowded. Allow 1.5-2 hours. **Go barefoot and wear shorts/skirts** (you wade through water in one room).\n\n**Midday: Tsukiji Outer Market**\nShort taxi or metro to Tsukiji. The inner market moved to Toyosu, but the outer market still has the best sushi, tamagoyaki, and fresh seafood street food in Tokyo. **Sushi Dai** or **Daiwa Sushi** if you're willing to queue 30-60 min. Otherwise walk the stalls and graze — sea urchin on rice, scallops on the grill. Budget ¥2,000-3,000.\n\n**Afternoon: Ginza**\nTokyo's most expensive shopping district. You don't need to buy anything — just walk **Chuo-dori** on a Sunday afternoon when it becomes a pedestrian street. The Sony building, Uniqlo flagship, Dover Street Market.\n\n**Evening: Odaiba**\nTake the **Yurikamome** automated monorail from Shimbashi — the ride itself is the attraction (elevated, views of Rainbow Bridge and bay). **DiverCity** mall for dinner. **teamLab Borderless** is here too if you didn't do Planets. Walk to the **Rainbow Bridge** viewpoint at night.\n\nBudget: ¥6,000-8,000 for the full day (teamLab + food)."
+    },
+    {
+      "day": 5,
+      "title": "Day 5 (Apr 1) — NIKKO DAY TRIP",
+      "content": "### **Day 5 (Apr 1) — NIKKO DAY TRIP**\n\nLeave Tokyo for a day — Nikko is worth every minute of the 2-hour train journey.\n\n**Getting There**\nTake the **Tobu Nikko Line** from Asakusa Station (¥1,400, ~2h) or the Shinkansen + local (faster, more expensive). Depart by 8am.\n\n**Tosho-gu Shrine Complex**\nUNESCO World Heritage Site. This is extravagant even by Japanese standards — gold leaf, intricate carvings, 5,000 cedar trees planted 400 years ago. **Yomeimon Gate** alone justifies the trip. Entry: ¥1,300.\n\nFind the **three wise monkeys** (see no evil, hear no evil, speak no evil) — the original, not the Harajuku souvenir version.\n\n**Kegon Falls**\nTake the bus from Nikko Toshogu to **Chuzenji-ko** lake and walk to Kegon Falls (¥570 for the elevator to the observation deck). 97m waterfall into a mountain lake — genuinely dramatic.\n\n**Lunch**\nYuba (tofu skin) is Nikko's regional specialty — try it in a set lunch at any restaurant near the shrine area. ~¥1,500.\n\n**Return**\nBack in Tokyo by 7-8pm. Dinner near your hotel — you'll be tired.\n\n💡 **Marco's tip:** Bring a warm layer even in late March — Nikko is 600m above sea level and noticeably colder than Tokyo."
+    },
+    {
+      "day": 6,
+      "title": "Day 6 (Apr 2) — YANAKA & EAST TOKYO",
+      "content": "### **Day 6 (Apr 2) — YANAKA & EAST TOKYO**\n\n**Morning: Yanaka**\nTokyo's most preserved pre-war neighbourhood — survived the 1923 earthquake and WWII firebombing. **Yanaka Ginza** shopping street (free to walk), cemetery that's actually beautiful not gloomy, old temples, cats everywhere. This is what Tokyo looked like before it became hyper-modern. Allow 2 hours.\n\n**Late Morning: Nezu Shrine**\nA 5-minute walk from Yanaka. Smaller and far less crowded than Fushimi Inari in Kyoto, but the tunnel of *torii* gates over the hillside garden is equally photogenic — and you'll have it almost to yourself. Free entry.\n\n**Lunch: Koenji**\nMetro west to Koenji — Tokyo's counterculture neighbourhood. Vintage shops, record stores, small jazz bars, excellent cheap ramen. **Nagi Shokudo** for a solid bowl, ~¥1,000.\n\n**Afternoon: Nakameguro**\nWalk the **Meguro River** canal — lined with cherry trees, independent cafés, and boutiques. **Daikanyama T-Site** (Tsutaya Books) is one of the most beautiful bookshops in the world. Coffee at **Onibus Coffee** or **Log Road**.\n\n**Evening: Final Tokyo Night**\nBack to Shinjuku or Shibuya. Splurge on a **proper omakase sushi counter** — budget ¥8,000-15,000pp for the experience. **Sushi Saito** (need connections), **Sushi Yoshitake** (book weeks ahead), or ask your hotel concierge for something bookable last-minute.\n\nOr: Shinjuku izakaya crawl, finishing at a **karaoke box** — the only acceptable way to end a Tokyo trip."
+    },
+    {
+      "day": 7,
+      "title": "Day 7 (Apr 3) — SLOW MORNING & DEPARTURE",
+      "content": "### **Day 7 (Apr 3) — SLOW MORNING & DEPARTURE**\n\n**Morning**\nFlight back to London is likely evening (most LHR routes depart 10-11pm). You have the full day.\n\n- **Tsukiji** one more time for a proper sushi breakfast if you missed Day 4\n- **Tokyo Skytree** (¥3,100 for Tembo Deck) — tallest structure in Japan, views on a clear day extend to Mt. Fuji\n- **Kappabashi** (Kitchen Town) — the street where restaurants buy their equipment and plastic food models. Brilliant for gifts: a realistic plastic ramen bowl costs ¥3,000-8,000 and makes the best souvenir imaginable\n\n**Packing Rule**\nJapan makes you want to buy everything. The 1-in-1-out rule: for every item you buy, you leave something behind. Budget ¥5,000-10,000 for last-minute gifts.\n\n**Airport**\nNarita Express (N'EX) from Shinjuku — ¥3,070, 90 min. Allow 3 hours before departure for Narita. Alternatively, **Haneda** (HND) is closer if your flight departs from there.\n\n---\n\n## 💰 Budget Breakdown (8 nights)\n\n| Category | Estimated |\n|---|---|\n| Flights (LHR ↔ NRT) | €820 |\n| Accommodation (7 nights ~€80/night) | €560 |\n| Food & drink | €360 |\n| Activities & entrance fees | €140 |\n| Transport (Suica + N'EX) | €90 |\n| **Total** | **€1,970** |\n\n✅ **€530 under your €2,500 budget** — allocate it to an omakase dinner, teamLab tickets, and souvenirs from Kappabashi."
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Plan my trip with these details:\n- Destination: Tokyo, Japan\n- Traveling from: London\n- Dates: 2026-03-28 to 2026-04-04 (8 days)\n- Total budget: 2500 EUR\n- Travel style: Culture & History, Food & Drink, Off the beaten path\n- Dietary preferences: No restrictions\n- Driver's license: Yes\n\nPlease generate a complete day-by-day itinerary."
+    },
+    {
+      "role": "assistant",
+      "content": "Tokyo for 8 days — you've got exactly the right amount of time to get past the surface and find the city underneath. Late March is peak cherry blossom season, which is either magic or chaos depending on how you handle crowds. I've planned around both.\n\nI've pulled live flight and hotel data — here's what we're working with.\n\n---\n\n### **Day 1 (Mar 28) — ARRIVAL & SHINJUKU**\n\n**Getting In**\nLondon Heathrow → Tokyo Narita (NRT) — ~12h direct. Take the **Narita Express (N'EX)** to Shinjuku Station (¥3,070, ~80 min). Get your **Suica card** at the airport — loads with ¥2,000 and works on every train/bus/convenience store in Japan.\n\n**Where to Sleep**\nStay in **Shinjuku** for the first 2 nights — central, well-connected, endlessly walkable. Budget ¥8,000-12,000/night (~€50-75) for a clean business hotel or capsule hotel with a private pod.\n\n**Afternoon (if you arrive early enough)**\nDon't fight jet lag — walk it off. **Shinjuku Gyoen** (¥500, closes 4pm) is one of Tokyo's best parks — cherry blossoms if you time it right, always beautiful regardless.\n\n**Evening**\n- **Omoide Yokocho** (Memory Lane) — narrow alley behind Shinjuku Station West Exit. Tiny yakitori stalls, smoke, salarymen, cold beer. ~¥2,000-3,000 for a full evening\n- Sleep early: jet lag will claim you regardless\n\n💡 **Marco's tip:** 7-Eleven, FamilyMart and Lawson convenience stores sell genuinely excellent food. Onigiri + hot green tea for ¥300 beats any tourist breakfast.\n\n---\n\n### **Day 2 (Mar 29) — ASAKUSA & UENO**\n\n**Morning: Senso-ji Temple, Asakusa**\nTokyo's oldest temple. Go at 7-8am before the crowds. Walk Nakamise Shopping Street for *ningyo-yaki* (sweet red bean cakes). The **Kaminarimon Gate** photo is unavoidable — just own it. Free entry.\n\n**Midday: Ueno**\n- **Tokyo National Museum** (¥1,000) — world's largest collection of Japanese art\n- **Ueno Ameyoko Market** for lunch: fresh seafood on rice, gyoza. Budget ¥800-1,200.\n\n**Afternoon: Akihabara**\nElectronics, anime, manga, retro games. **Super Potato** (6th floor, Sotokanda) is the retro gaming store.\n\n**Evening: Izakaya dinner**\n- **Torikizoku** chain izakaya: every item ¥298, great quality yakitori\n- Budget: ¥3,000-4,000 for food + drinks.\n\n---\n\n### **Day 3 (Mar 30) — HARAJUKU & SHIBUYA**\n\n**Morning: Harajuku**\n- **Meiji Jingu Shrine** — free entry, tranquil forest walk\n- **Takeshita Street** — Tokyo's youth fashion street. Crêpes obligatory (¥600-800)\n\n**Midday: Omotesando**\nTokyo's boulevard of world architecture. **Afuri** ramen for lunch — yuzu shio is one of the best bowls in Tokyo. ~¥1,200.\n\n**Afternoon: Shibuya**\n- **Shibuya Scramble Crossing** — cross it, then watch from **Shibuya Sky** observatory (¥2,000, spectacular at dusk)\n- Find **Hachiko's statue** — pay your respects\n\n**Evening: Shimokitazawa**\nTokyo's indie neighbourhood. Live music, vintage shops, tiny bars, great food. Budget ¥3,000-4,000.\n\n---\n\n### **Day 4 (Mar 31) — TEAMLAB & ODAIBA**\n\n**Morning: teamLab Planets, Toyosu**\nBook in advance — ¥3,200 online. Immersive digital art, genuinely unlike anything else. Go at 10am opening. Wear shorts (you wade through water).\n\n**Midday: Tsukiji Outer Market**\nBest sushi, tamagoyaki, and fresh seafood in Tokyo. **Sushi Dai** or graze the stalls. Budget ¥2,000-3,000.\n\n**Evening: Odaiba**\nTake the **Yurikamome** monorail from Shimbashi — the ride itself is the attraction. Walk to the **Rainbow Bridge** viewpoint at night.\n\n---\n\n### **Day 5 (Apr 1) — NIKKO DAY TRIP**\n\nLeave Tokyo for a day — 2 hours by train, worth every minute.\n\n**Tosho-gu Shrine Complex** — UNESCO World Heritage, gold leaf, 5,000 cedar trees. Find the original three wise monkeys. Entry: ¥1,300.\n\n**Kegon Falls** — 97m waterfall into a mountain lake. ¥570 for the elevator.\n\n**Lunch** — Yuba (tofu skin) set lunch, Nikko's regional specialty. ~¥1,500.\n\n💡 Bring a warm layer — Nikko is 600m above sea level, noticeably colder than Tokyo.\n\n---\n\n### **Day 6 (Apr 2) — YANAKA & EAST TOKYO**\n\n**Morning: Yanaka** — Tokyo's most preserved pre-war neighbourhood. Cats, old temples, no tourists. 2 hours.\n\n**Late Morning: Nezu Shrine** — tunnel of *torii* gates, far less crowded than Kyoto's Fushimi Inari. Free.\n\n**Afternoon: Nakameguro** — walk the Meguro River canal, visit **Daikanyama T-Site** (one of the most beautiful bookshops in the world).\n\n**Evening: Final Tokyo Night** — Splurge on omakase sushi (¥8,000-15,000pp) or do a Shinjuku izakaya crawl ending at karaoke.\n\n---\n\n### **Day 7 (Apr 3) — SLOW MORNING & DEPARTURE**\n\nFull day before your evening flight.\n\n- **Tokyo Skytree** (¥3,100) for views possibly including Mt. Fuji\n- **Kappabashi** (Kitchen Town) for the best souvenirs: realistic plastic food models\n- Last sushi at Tsukiji if you missed it\n\nN'EX train to Narita — allow 3 hours before departure.\n\n---\n\n## 💰 Budget Breakdown\n\n| Category | Estimated |\n|---|---|\n| Flights (LHR ↔ NRT) | €820 |\n| Accommodation (7 nights ~€80/night) | €560 |\n| Food & drink | €360 |\n| Activities & entrance fees | €140 |\n| Transport (Suica + N'EX) | €90 |\n| **Total** | **€1,970** |\n\n✅ **€530 under your €2,500 budget.** Allocate to omakase dinner, teamLab, and Kappabashi souvenirs."
+    }
+  ]
+}

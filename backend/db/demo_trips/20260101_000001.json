@@ -1,0 +1,106 @@
+{
+  "trip_id": "20260101_000001",
+  "is_demo": true,
+  "destination": "Barcelona, Spain",
+  "city": "Barcelona",
+  "country_code": "ES",
+  "dates": "2026-06-15 to 2026-06-19",
+  "start_date": "2026-06-15",
+  "end_date": "2026-06-19",
+  "origin": "Amsterdam",
+  "budget": 1200.0,
+  "currency": "EUR",
+  "saved_at": "2026-01-01T00:00:01.000000",
+  "budget_breakdown": {
+    "flights": 185,
+    "accommodation": 400,
+    "food": 220,
+    "activities": 120,
+    "transport": 45,
+    "total_estimated": 970
+  },
+  "day_overrides": {},
+  "spending": [],
+  "checklist": [
+    {
+      "id": "demo-bcn-1",
+      "category": "documents",
+      "item": "Check passport validity (6+ months beyond return date)",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-bcn-2",
+      "category": "visa",
+      "item": "Confirm Schengen entry requirements for your passport",
+      "completed": false,
+      "priority": "high"
+    },
+    {
+      "id": "demo-bcn-3",
+      "category": "kit",
+      "item": "Book Sagrada Família tickets online (sells out weeks ahead)",
+      "completed": false,
+      "priority": "high"
+    },
+    {
+      "id": "demo-bcn-4",
+      "category": "insurance",
+      "item": "Purchase travel insurance with medical cover",
+      "completed": true,
+      "priority": "high"
+    },
+    {
+      "id": "demo-bcn-5",
+      "category": "kit",
+      "item": "Download offline Google Maps for Barcelona",
+      "completed": false,
+      "priority": "normal"
+    },
+    {
+      "id": "demo-bcn-6",
+      "category": "kit",
+      "item": "Get a Revolut / Wise card to avoid ATM fees",
+      "completed": false,
+      "priority": "normal"
+    }
+  ],
+  "email_config": {},
+  "days": [
+    {
+      "day": 1,
+      "title": "Day 1 (June 15) — ARRIVAL & EL BORN",
+      "content": "### **Day 1 (June 15) — ARRIVAL & EL BORN**\n\n**Getting In**\nAmsterdam → Barcelona El Prat (BCN) — ~2h flight. Take the **Aerobus** (€6.75, 35 min) to Plaça Catalunya. Skip the taxi.\n\n**Where to Sleep**\nStay in **El Born** or **Gothic Quarter** — puts you walking distance from everything Day 1-3. Budget €75-90/night for a decent private room.\n\n**Afternoon**\nDrop your bags and walk the Barri Gòtic without a map. Find the **Temple d'August** (free, hidden inside the Centre Excursionista de Catalunya building) — it's a genuine 1st-century Roman temple and most visitors walk right past it.\n\n**Evening**\n- **El Xampanyet** (Carrer de Montcada) — oldest cava bar in Barcelona, €2.50/glass, great anchovies\n- **Bar del Pla** for dinner: *croquetes*, *patates braves*, solid wine list. ~€25pp\n- Walk Passeig del Born after dark — the neighbourhood comes alive.\n\n💡 **Book NOW:** Sagrada Família for Day 2 at 9am (tower access add-on worth it). They sell out weeks ahead. €26-32 online."
+    },
+    {
+      "day": 2,
+      "title": "Day 2 (June 16) — GAUDÍ DAY",
+      "content": "### **Day 2 (June 16) — GAUDÍ DAY**\n\n**Morning: Sagrada Família (9am)**\nFirst entry, arrive 10 min early. Budget 2-2.5 hours — the interior is genuinely overwhelming. Tower access (€5 extra) gives you the best view over the Eixample grid. Cost: ~€26-32.\n\n**Midday: Park Güell**\nMetro to Vallcarca or Lesseps (20 min walk up). **Book the monumental zone** in advance (€10) — the terrace and mosaic esplanade are the reason you're going. Free park around it is also beautiful. Grab a *bocadillo* from a stall outside.\n\n**Afternoon: Gràcia**\nWalk down into Gràcia — Barcelona's most liveable neighbourhood. **Carrer de Verdi**, **Plaça del Sol**, **Mercat de l'Abaceria** (local market). Browse vintage shops on Travessera de Gràcia.\n\n**Evening**\n- **Bar Calders** (Carrer del Parlament, Eixample Esquerra) — pintxos + wine ~€20pp\n- Walk the **Passeig de Gràcia** at night to see Casa Batlló and Casa Milà lit up (free, just the exterior)\n\n💡 **Marco's tip:** Avoid eating anywhere within 200m of La Rambla."
+    },
+    {
+      "day": 3,
+      "title": "Day 3 (June 17) — BARCELONETA & EL POBLENOU",
+      "content": "### **Day 3 (June 17) — BARCELONETA & EL POBLENOU**\n\n**Morning: Barceloneta Beach**\nGo before 10am while it's still breathable. Walk the **Passeig Marítim** south to Port Olímpic and back. Take a swim if the forecast is clear.\n\n**Midday: La Cova Fumada**\nThe best paella/rice in Barcelona, cash only, no reservations, seats ~30 people. **Arrive at 1pm exactly** when they open — queue forms fast. Order the *arròs amb bogavant* or whatever the daily special is. ~€16-20pp.\n\n**Afternoon: El Poblenou**\nBarcelona's former industrial district, now creative hub. Walk the **Rambla del Poblenou** (the locals' Rambla — no tourists). Coffee at **Federal Café**. Wander the side streets: street art, design studios, converted warehouses.\n\n**Evening: El Born Nightlife**\nBack to El Born by 8pm. The neighbourhood transforms at night.\n- **Bar Marsella** (Carrer dels Escudellers) — Barcelona's oldest bar, absinthe and atmosphere since 1820\n- **Cactus Bar** for mezcal\n- Or just follow the sound of music down Carrer del Rec\n\nBudget €15-20 for drinks."
+    },
+    {
+      "day": 4,
+      "title": "Day 4 (June 18) — MONTJUÏC & POBLE SEC",
+      "content": "### **Day 4 (June 18) — MONTJUÏC & POBLE SEC**\n\n**Morning: Montjuïc**\nTake the **cable car** up from Barceloneta (€12.70 return) — the views over the port and city are excellent. Visit **Fundació Joan Miró** (€14) — genuinely great contemporary art, 1.5-2 hours max. Skip the castle unless you love Spanish military fortresses.\n\n**Midday: Carrer de Blai**\nWalk down to Poble Sec. **Carrer de Blai** is Barcelona's best pintxos street — €1-1.50 per pintxo, choose the ones with fresh seafood or jamón. Go at 1pm before the lunch rush fills the street.\n\n**Afternoon: Eixample Modernisme**\nWalk up to the Eixample and stroll the **Block of Discord**:\n- **Casa Batlló** (€35 — worth it if architecture is your thing, skip if not)\n- **Casa Amatller** — free exterior, beautiful tiling\n- **Casa Lleó Morera** — most underrated of the three\n\n**Evening: Vermouth Hour**\n*La hora del vermut* — 6-8pm at any bar in Gràcia or Poble Sec. Order vermut amb sifon, olives on the side. This is the real Barcelona ritual that tourists miss.\n\n- **Bar Calders** again, or **Bodega Sepúlveda** for wine and charcuterie\n- Dinner at **Tickets** if you booked months ago (Albert Adrià tapas bar); otherwise **Bodega 1900** is more bookable."
+    },
+    {
+      "day": 5,
+      "title": "Day 5 (June 19) — PICASSO, PALAU & DEPARTURE",
+      "content": "### **Day 5 (June 19) — PICASSO, PALAU & DEPARTURE**\n\n**Morning: Museu Picasso (9am)**\nOpens at 9am. €14 general admission — book online the day before. The early work is the revelation: his technical skill at 14-16 is genuinely shocking. Budget 1.5-2 hours.\n\n**Late Morning: Palau de la Música Catalana**\nGuided tour (€22, ~55 min) of the only Modernista concert hall in the world — the stained glass ceiling alone is worth it. Book online. One of the most beautiful interiors you'll see anywhere.\n\n**Lunch**\nLast meal at **Mercado del Born** — the cultural centre built over a 1714 archaeological site. Great cafés inside. Order *pa amb tomàquet* with jamón ibéric.\n\n**Afternoon**\nFinal wander. Buy gifts at any of the design shops on Carrer dels Flassaders. Last *café amb llet* at **Bar del Pi** on Plaça de Sant Josep Oriol.\n\n**Airport**\nAerobus from Plaça Catalunya (€6.75, 35 min). Allow 2 hours before departure.\n\n---\n\n## Budget Summary\n| Category | Estimated |\n|---|---|\n| Flights (AMS ↔ BCN) | €185 |\n| Accommodation (5 nights ~€80/night) | €400 |\n| Food & drink | €220 |\n| Activities & entrance fees | €120 |\n| Local transport | €45 |\n| **Total** | **€970** |\n\n✅ **€230 under your €1,200 budget** — use it for Casa Batlló, a nicer dinner, or shopping."
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Plan my trip with these details:\n- Destination: Barcelona, Spain\n- Traveling from: Amsterdam\n- Dates: 2026-06-15 to 2026-06-19 (5 days)\n- Total budget: 1200 EUR\n- Travel style: Culture & History, Food & Drink\n- Dietary preferences: No restrictions\n- Driver's license: Yes\n\nPlease generate a complete day-by-day itinerary."
+    },
+    {
+      "role": "assistant",
+      "content": "Barcelona in June — great call. Five days is the sweet spot: enough to get past the tourist surface without running out of things to discover. I've pulled real flight and hotel data so the numbers below are actual, not guesswork.\n\n---\n\n### **Day 1 (June 15) — ARRIVAL & EL BORN**\n\n**Getting In**\nAmsterdam → Barcelona El Prat (BCN) — ~2h flight. Take the **Aerobus** (€6.75, 35 min) to Plaça Catalunya. Skip the taxi.\n\n**Where to Sleep**\nStay in **El Born** or **Gothic Quarter** — puts you walking distance from everything Day 1-3. Budget €75-90/night for a decent private room.\n\n**Afternoon**\nDrop your bags and walk the Barri Gòtic without a map. Find the **Temple d'August** (free, hidden inside the Centre Excursionista de Catalunya building) — it's a genuine 1st-century Roman temple and most visitors walk right past it.\n\n**Evening**\n- **El Xampanyet** (Carrer de Montcada) — oldest cava bar in Barcelona, €2.50/glass, great anchovies\n- **Bar del Pla** for dinner: *croquetes*, *patates braves*, solid wine list. ~€25pp\n- Walk Passeig del Born after dark — the neighbourhood comes alive.\n\n💡 **Book NOW:** Sagrada Família for Day 2 at 9am (tower access add-on worth it). They sell out weeks ahead. €26-32 online.\n\n---\n\n### **Day 2 (June 16) — GAUDÍ DAY**\n\n**Morning: Sagrada Família (9am)**\nFirst entry, arrive 10 min early. Budget 2-2.5 hours — the interior is genuinely overwhelming. Tower access (€5 extra) gives you the best view over the Eixample grid. Cost: ~€26-32.\n\n**Midday: Park Güell**\nMetro to Vallcarca or Lesseps (20 min walk up). **Book the monumental zone** in advance (€10) — the terrace and mosaic esplanade are the reason you're going. Free park around it is also beautiful. Grab a *bocadillo* from a stall outside.\n\n**Afternoon: Gràcia**\nWalk down into Gràcia — Barcelona's most liveable neighbourhood. **Carrer de Verdi**, **Plaça del Sol**, **Mercat de l'Abaceria** (local market). Browse vintage shops on Travessera de Gràcia.\n\n**Evening**\n- **Bar Calders** (Carrer del Parlament, Eixample Esquerra) — pintxos + wine ~€20pp\n- Walk the **Passeig de Gràcia** at night to see Casa Batlló and Casa Milà lit up (free, just the exterior)\n\n💡 **Marco's tip:** Avoid eating anywhere within 200m of La Rambla.\n\n---\n\n### **Day 3 (June 17) — BARCELONETA & EL POBLENOU**\n\n**Morning: Barceloneta Beach**\nGo before 10am while it's still breathable. Walk the **Passeig Marítim** south to Port Olímpic and back. Take a swim if the forecast is clear.\n\n**Midday: La Cova Fumada**\nThe best paella/rice in Barcelona, cash only, no reservations, seats ~30 people. **Arrive at 1pm exactly** when they open — queue forms fast. Order the *arròs amb bogavant* or whatever the daily special is. ~€16-20pp.\n\n**Afternoon: El Poblenou**\nBarcelona's former industrial district, now creative hub. Walk the **Rambla del Poblenou** (the locals' Rambla — no tourists). Coffee at **Federal Café**. Wander the side streets: street art, design studios, converted warehouses.\n\n**Evening: El Born Nightlife**\nBack to El Born by 8pm. The neighbourhood transforms at night.\n- **Bar Marsella** (Carrer dels Escudellers) — Barcelona's oldest bar, absinthe and atmosphere since 1820\n- **Cactus Bar** for mezcal\n- Or just follow the sound of music down Carrer del Rec\n\nBudget €15-20 for drinks.\n\n---\n\n### **Day 4 (June 18) — MONTJUÏC & POBLE SEC**\n\n**Morning: Montjuïc**\nTake the **cable car** up from Barceloneta (€12.70 return) — the views over the port and city are excellent. Visit **Fundació Joan Miró** (€14) — genuinely great contemporary art, 1.5-2 hours max. Skip the castle unless you love Spanish military fortresses.\n\n**Midday: Carrer de Blai**\nWalk down to Poble Sec. **Carrer de Blai** is Barcelona's best pintxos street — €1-1.50 per pintxo, choose the ones with fresh seafood or jamón. Go at 1pm before the lunch rush fills the street.\n\n**Afternoon: Eixample Modernisme**\nWalk up to the Eixample and stroll the **Block of Discord**:\n- **Casa Batlló** (€35 — worth it if architecture is your thing, skip if not)\n- **Casa Amatller** — free exterior, beautiful tiling\n- **Casa Lleó Morera** — most underrated of the three\n\n**Evening: Vermouth Hour**\n*La hora del vermut* — 6-8pm at any bar in Gràcia or Poble Sec. Order vermut amb sifon, olives on the side. This is the real Barcelona ritual that tourists miss.\n\n---\n\n### **Day 5 (June 19) — PICASSO, PALAU & DEPARTURE**\n\n**Morning: Museu Picasso (9am)**\nOpens at 9am. €14 general admission — book online the day before. The early work is the revelation: his technical skill at 14-16 is genuinely shocking. Budget 1.5-2 hours.\n\n**Late Morning: Palau de la Música Catalana**\nGuided tour (€22, ~55 min) of the only Modernista concert hall in the world — the stained glass ceiling alone is worth it. Book online. One of the most beautiful interiors you'll see anywhere.\n\n**Lunch**\nLast meal at **Mercado del Born** cultural centre. Great cafés inside. Order *pa amb tomàquet* with jamón ibéric.\n\n**Afternoon**\nFinal wander. Buy gifts at any of the design shops on Carrer dels Flassaders. Last *café amb llet* at **Bar del Pi** on Plaça de Sant Josep Oriol.\n\n**Airport**\nAerobus from Plaça Catalunya (€6.75, 35 min). Allow 2 hours before departure.\n\n---\n\n## 💰 Budget Breakdown\n\n| Category | Estimated |\n|---|---|\n| Flights (AMS ↔ BCN) | €185 |\n| Accommodation (5 nights ~€80/night) | €400 |\n| Food & drink | €220 |\n| Activities & entrance fees | €120 |\n| Local transport | €45 |\n| **Total** | **€970** |\n\n✅ **€230 under your €1,200 budget.** Use it for Casa Batlló, a nicer dinner, or guilt-free shopping in El Born."
+    }
+  ]
+}

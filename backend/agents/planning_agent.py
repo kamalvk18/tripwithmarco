@@ -11,6 +11,7 @@ from backend.config import (
     SONNET_MODEL,
     HAIKU_MODEL,
     PLANNING_MAX_TOKENS,
+    COMPANION_MAX_TOKENS,
     EXTRACTION_MAX_TOKENS,
 )
 
@@ -268,7 +269,7 @@ def get_trip_day(start_date_str: str, end_date_str: str) -> dict:
         }
 
 
-def run_agentic_loop(messages: list, system: str, on_tool_call=None, collected: dict | None = None):
+def run_agentic_loop(messages: list, system: str, on_tool_call=None, collected: dict | None = None, model: str | None = None, max_tokens: int | None = None):
     """
     Core agentic loop — handles tool use automatically.
     Yields text chunks as they stream from Claude.
@@ -281,14 +282,18 @@ def run_agentic_loop(messages: list, system: str, on_tool_call=None, collected: 
                       progress in a UI (e.g., update an st.empty() container).
         collected:    Optional mutable dict; tool results (e.g. hotel suggestions)
                       are written here so callers can surface them in the UI.
+        model:        Override the model. Defaults to SONNET_MODEL.
+        max_tokens:   Override max output tokens. Defaults to PLANNING_MAX_TOKENS.
     """
 
+    _model = model or SONNET_MODEL
+    _max_tokens = max_tokens or PLANNING_MAX_TOKENS
     current_messages = messages.copy()
 
     while True:
         with client.messages.stream(
-            model=SONNET_MODEL,
-            max_tokens=PLANNING_MAX_TOKENS,
+            model=_model,
+            max_tokens=_max_tokens,
             system=system,
             tools=TOOL_DEFINITIONS,
             messages=current_messages
@@ -388,7 +393,9 @@ Ask how yesterday went if it's Day 2+."""
 {weather_text}
 Use this to adjust today's plan. Don't mention you fetched it — just act on it."""
 
-    yield from run_agentic_loop(messages, system_with_context, on_tool_call=on_tool_call, collected=collected)
+    model = HAIKU_MODEL if companion_mode else SONNET_MODEL
+    tokens = COMPANION_MAX_TOKENS if companion_mode else PLANNING_MAX_TOKENS
+    yield from run_agentic_loop(messages, system_with_context, on_tool_call=on_tool_call, collected=collected, model=model, max_tokens=tokens)
 
 def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:
     """

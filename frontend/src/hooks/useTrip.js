@@ -13,6 +13,12 @@ import { computeItinerary, extractAllDays, tripStatus } from '@/lib/utils'
  */
 const tripCache = new Map()
 
+/** Call this after updating a trip from outside useTrip (e.g. PlanTrip save) so the
+ *  next TripView visit fetches fresh data instead of serving the stale cache. */
+export function invalidateTripCache(id) {
+  tripCache.delete(id)
+}
+
 /**
  * useTrip — encapsulates everything about a single trip.
  *

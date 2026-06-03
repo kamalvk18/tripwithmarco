@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Mail, BellRing, BellOff, Send } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { apiFetch } from '@/lib/api'
 
 async function apiSaveConfig(tripId, config) {
-  const res = await fetch(`/api/trips/${tripId}/email-config`, {
+  const res = await apiFetch(`/api/trips/${tripId}/email-config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
@@ -13,7 +14,7 @@ async function apiSaveConfig(tripId, config) {
 }
 
 async function apiSendNow(tripId, email) {
-  const res = await fetch(`/api/trips/${tripId}/send-briefing`, {
+  const res = await apiFetch(`/api/trips/${tripId}/send-briefing`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to_email: email }),

@@ -269,14 +269,15 @@ def get_trip_day(start_date_str: str, end_date_str: str) -> dict:
         }
 
 
-def run_agentic_loop(messages: list, system: str, on_tool_call=None, collected: dict | None = None, model: str | None = None, max_tokens: int | None = None):
+def run_agentic_loop(messages: list, system: str | list, on_tool_call=None, collected: dict | None = None, model: str | None = None, max_tokens: int | None = None):
     """
     Core agentic loop — handles tool use automatically.
     Yields text chunks as they stream from Claude.
 
     Args:
         messages:     Conversation history (list of role/content dicts).
-        system:       System prompt string.
+        system:       System prompt — either a plain string or a list of content
+                      blocks (supports cache_control for prompt caching).
         on_tool_call: Optional callable(tool_name: str, tool_input: dict) fired
                       just before each tool is executed. Use it to surface live
                       progress in a UI (e.g., update an st.empty() container).
@@ -339,7 +340,13 @@ def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, o
     """Send a message to Marco and get a streaming response."""
 
     today = datetime.now().strftime("%A, %B %d, %Y")
-    system_with_context = SYSTEM_PROMPT + f"\n\n## Current Date\nToday is {today}."
+    user_currency = (trip_data or {}).get("currency", "EUR")
+    dynamic_context = (
+        f"\n\n## Current Date\nToday is {today}."
+        f"\n\n## User Currency\nThe user's selected currency is **{user_currency}**. "
+        f"Always pass `currency: \"{user_currency}\"` when calling search_flights. "
+        f"Show all prices in {user_currency} — never convert or mention another currency."
+    )
 
     if companion_mode and trip_data:
         trip_day = get_trip_day(
@@ -368,7 +375,7 @@ def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, o
                 except Exception:
                     pass
 
-            system_with_context += f"""
+            dynamic_context += f"""
 
 ## COMPANION MODE — ACTIVE TRIP
 The user is CURRENTLY ON THIS TRIP. Today is Day {day_number} of {total_days}.
@@ -381,21 +388,29 @@ If weather is bad, restructure proactively. Don't just warn — give the fix.
 Ask how yesterday went if it's Day 2+."""
 
             if today_plan:
-                system_with_context += f"""
+                dynamic_context += f"""
 
 ## TODAY'S ITINERARY (Day {day_number})
 {today_plan}"""
 
             if weather_text:
-                system_with_context += f"""
+                dynamic_context += f"""
 
 ## CURRENT WEATHER (fetched live)
 {weather_text}
 Use this to adjust today's plan. Don't mention you fetched it — just act on it."""
 
+    # Cache the static system prompt (marco.md) — it never changes between requests.
+    # The dynamic block (date, companion context) is excluded from the cache since it
+    # varies per request and would bust the cache on every call anyway.
+    system = [
+        {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": dynamic_context},
+    ]
+
     model = HAIKU_MODEL if companion_mode else SONNET_MODEL
     tokens = COMPANION_MAX_TOKENS if companion_mode else PLANNING_MAX_TOKENS
-    yield from run_agentic_loop(messages, system_with_context, on_tool_call=on_tool_call, collected=collected, model=model, max_tokens=tokens)
+    yield from run_agentic_loop(messages, system, on_tool_call=on_tool_call, collected=collected, model=model, max_tokens=tokens)
 
 def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:
     """

@@ -5,7 +5,7 @@ Update model names here when upgrading — do not hardcode them in other files.
 
 # ── Models ────────────────────────────────────────────────────────────────────
 # Main planning / companion mode (streaming)
-SONNET_MODEL = "claude-sonnet-4-5-20250929"
+SONNET_MODEL = "claude-sonnet-4-6"
 
 # Quick structured extraction only — do not use for high-quality output
 HAIKU_MODEL = "claude-haiku-4-5-20251001"

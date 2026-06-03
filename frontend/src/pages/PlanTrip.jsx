@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Plane, Send, Save } from 'lucide-react'
 import { extractInfo, listTrips, saveTrip, updateTrip } from '@/lib/api'
+import { invalidateTripCache } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { Button } from '@/components/ui/Button'
@@ -61,19 +63,21 @@ export default function PlanTrip() {
 
   // Pre-fill from navigation state when regenerating an existing trip
   const prefill = location.state?.prefill ?? {}
+  // Resume an existing draft mid-conversation
+  const resume  = location.state?.resume  ?? null
 
   const [form, setForm] = useState({
-    destination:            prefill.destination            ?? '',
-    destinationCountryCode: prefill.destinationCountryCode ?? '',
-    origin:                 prefill.origin                 ?? '',
-    startDate:              prefill.startDate              ?? '',
-    endDate:                prefill.endDate                ?? '',
-    budget:                 prefill.budget                 ?? '',
-    currency:               prefill.currency               ?? 'EUR',
+    destination:            (resume?.meta ?? prefill).destination            ?? '',
+    destinationCountryCode: (resume?.meta ?? prefill).destinationCountryCode ?? '',
+    origin:                 (resume?.meta ?? prefill).origin                 ?? '',
+    startDate:              (resume?.meta ?? prefill).startDate              ?? '',
+    endDate:                (resume?.meta ?? prefill).endDate                ?? '',
+    budget:                 (resume?.meta ?? prefill).budget                 ?? '',
+    currency:               (resume?.meta ?? prefill).currency               ?? 'EUR',
     travelStyles: [],
     dietary: 'None',
-    hasTwoWheelerLicence:  prefill.hasTwoWheelerLicence  ?? false,
-    hasFourWheelerLicence: prefill.hasFourWheelerLicence ?? false,
+    hasTwoWheelerLicence:  (resume?.meta ?? prefill).hasTwoWheelerLicence  ?? false,
+    hasFourWheelerLicence: (resume?.meta ?? prefill).hasFourWheelerLicence ?? false,
     notes: '',
   })
 
@@ -92,26 +96,41 @@ export default function PlanTrip() {
       .catch(() => {})
   }, [])
 
-  // Conversation state
-  const [started, setStarted]           = useState(false)
-  const [messages, setMessages]         = useState([])
+  // Conversation state — seed from resume if continuing an existing draft
+  const [started, setStarted]           = useState(!!resume)
+  const [messages, setMessages]         = useState(resume?.messages ?? [])
   const [streamingText, setStreamText]  = useState('')
   const [quickReplies, setQuickReplies] = useState([])
   const [input, setInput]               = useState('')
   const [saving, setSaving]             = useState(false)
-  const [draftSaved, setDraftSaved]     = useState(false)
+  const [draftSaved, setDraftSaved]     = useState(!!resume)
   // True once Marco has written a full day-by-day itinerary — shows the Save button
   const [itineraryReady, setItineraryReady] = useState(false)
   const responseRef      = useRef('')
-  const draftIdRef       = useRef(null)   // persists across renders without causing re-renders
-  const draftMetaRef     = useRef(null)   // base trip metadata for updates
+  const draftIdRef       = useRef(resume?.tripId ?? null)
+  const draftMetaRef     = useRef(resume?.meta   ?? null)
   const bookingDataRef   = useRef({})     // accumulated booking data (hotel suggestions, etc.)
-  const bottomRef    = useRef(null)
-  const inputRef     = useRef(null)
+  const bottomRef         = useRef(null)
+  const inputRef          = useRef(null)
+  const shouldScrollRef   = useRef(true)
 
-  // Auto-scroll to bottom as Marco types
+  // Track whether user has scrolled away from the bottom
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const container = document.querySelector('main')
+    if (!container) return
+    const onScroll = () => {
+      const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120
+      shouldScrollRef.current = nearBottom
+    }
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => container.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Auto-scroll only when already near the bottom
+  useEffect(() => {
+    if (shouldScrollRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, streamingText])
 
   // Focus input after Marco finishes
@@ -177,6 +196,7 @@ export default function PlanTrip() {
 
   /** Core: send a message to Marco, stream response, handle auto-save on itinerary. */
   async function sendMessage(userContent, prevMessages = messages) {
+    shouldScrollRef.current = true   // snap to bottom for the new turn
     const userMsg  = { role: 'user', content: userContent }
     const withUser = [...prevMessages, userMsg]
     setMessages(withUser)
@@ -233,33 +253,38 @@ export default function PlanTrip() {
     try {
       const extracted = await extractInfo(msgs, form.currency)
       const base = draftMetaRef.current ?? buildDraftMeta()
+      const finalStart = extracted.start_date || form.startDate
+      const finalEnd   = extracted.end_date   || form.endDate
       const tripData = {
         ...base,
         ...bookingDataRef.current,
-        destination: extracted.destination || form.destination,
-        dates: `${form.startDate} to ${form.endDate}`,
-        start_date: extracted.start_date || form.startDate,
-        end_date: extracted.end_date || form.endDate,
-        city: extracted.city || form.destination,
-        country_code: extracted.country_code || form.destinationCountryCode || '',
-        budget: parseFloat(form.budget) || 0,
-        currency: form.currency,
+        destination:   form.destination || extracted.destination,
+        dates:         `${finalStart} to ${finalEnd}`,
+        start_date:    finalStart,
+        end_date:      finalEnd,
+        city:          extracted.city || form.destination,
+        country_code:  extracted.country_code || form.destinationCountryCode || '',
+        budget:        parseFloat(form.budget) || 0,
+        currency:      form.currency,
         budget_breakdown: extracted.budget_breakdown || {},
-        messages: msgs,
+        messages:      msgs,
         day_overrides: {},
       }
       if (draftIdRef.current) {
-        // Update the existing draft with full extracted metadata, then navigate to it
         await updateTrip(draftIdRef.current, tripData)
+        invalidateTripCache(draftIdRef.current)
         navigate(`/trips/${draftIdRef.current}`)
       } else {
         const tripId = await saveTrip(tripData)
         navigate(`/trips/${tripId}`)
       }
     } catch {
-      // If extraction/update failed, still navigate to the draft if we have one
-      if (draftIdRef.current) navigate(`/trips/${draftIdRef.current}`)
-      else navigate('/')
+      if (draftIdRef.current) {
+        invalidateTripCache(draftIdRef.current)
+        navigate(`/trips/${draftIdRef.current}`)
+      } else {
+        navigate('/')
+      }
     }
   }
 
@@ -483,7 +508,7 @@ export default function PlanTrip() {
                 ? (
                   <div className="prose prose-sm prose-invert max-w-none
                     prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100">
-                    <ReactMarkdown>{stripOptions(msg.content)}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(msg.content)}</ReactMarkdown>
                   </div>
                 )
                 : msg.content
@@ -521,7 +546,7 @@ export default function PlanTrip() {
               px-4 py-3 text-sm max-w-[88%] text-slate-200">
               <div className="prose prose-sm prose-invert max-w-none
                 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100 streaming-cursor">
-                <ReactMarkdown>{stripOptions(streamingText)}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(streamingText)}</ReactMarkdown>
               </div>
             </div>
           </div>

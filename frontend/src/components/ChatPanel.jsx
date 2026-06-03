@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Send, ChevronDown, MessageCircle } from 'lucide-react'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { Spinner } from '@/components/ui/Spinner'
@@ -36,7 +37,7 @@ function Bubble({ role, content, isStreaming }) {
       >
         {isMarco ? (
           <div className="prose prose-sm max-w-none">
-            <ReactMarkdown>{displayContent}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
           </div>
         ) : (
           <p className="whitespace-pre-wrap">{displayContent}</p>
@@ -65,15 +66,29 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
   const [input, setInput]                 = useState('')
   const [streamingText, setStreamingText] = useState('')
   const [quickReplies, setQuickReplies]   = useState([])
-  const bottomRef = useRef(null)
-  const inputRef  = useRef(null)
+  const bottomRef       = useRef(null)
+  const inputRef        = useRef(null)
+  const scrollRef       = useRef(null)   // the scrollable message list div
+  const shouldScrollRef = useRef(true)
   // Snapshot of messages.length at mount — used to slice out planning history.
   // useState (not useRef) so the value is safe to read during render.
   const [initialMsgCount] = useState(messages.length)
 
-  // Scroll to bottom when expanded or when new messages arrive
+  // Track whether user has scrolled up inside the panel
   useEffect(() => {
-    if (expanded) {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+      shouldScrollRef.current = nearBottom
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Scroll to bottom when expanded or new content arrives — only if near bottom
+  useEffect(() => {
+    if (expanded && shouldScrollRef.current) {
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
   }, [expanded, messages.length, streamingText, toolStatus])
@@ -90,6 +105,7 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
     const text = (overrideText ?? input).trim()
     if (!text || streaming) return
 
+    shouldScrollRef.current = true   // snap to bottom for the new turn
     const userMsg = { role: 'user', content: text }
     const newChat  = [...chatMessages, userMsg]
     setChatMessages(newChat)
@@ -173,7 +189,7 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
       {expanded && (
         <>
           {/* Message list */}
-          <div className="flex flex-col gap-4 p-5 max-h-[520px] overflow-y-auto">
+          <div ref={scrollRef} className="flex flex-col gap-4 p-5 max-h-[520px] overflow-y-auto">
             {isEmpty && (
               <p className="text-xs text-slate-500 text-center py-4">{emptyHint}</p>
             )}

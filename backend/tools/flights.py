@@ -98,7 +98,7 @@ def parse_flights(raw_flights: list) -> list[dict]:
                 "airline": airline_str,
                 "airline_logo": first_leg.get("airline_logo"),
                 "price": flight.get("price", 0),
-                "price_label": f"€{flight.get('price', 0)}",
+                "price_label": None,  # set by format_flights_for_marco once currency is known
                 "from": departure["id"],
                 "to": arrival["id"],
                 "departure_time": departure["time"],
@@ -119,26 +119,38 @@ def parse_flights(raw_flights: list) -> list[dict]:
     return parsed
 
 
+_CURRENCY_SYMBOLS = {
+    "EUR": "€", "USD": "$", "GBP": "£", "JPY": "¥", "INR": "₹",
+    "AUD": "A$", "CAD": "C$", "SGD": "S$", "CHF": "CHF ", "CNY": "¥",
+}
+
+
+def _fmt_price(amount: int | float, currency: str) -> str:
+    symbol = _CURRENCY_SYMBOLS.get(currency.upper(), f"{currency} ")
+    return f"{symbol}{amount:,.0f}"
+
+
 def format_flights_for_marco(
     flights: list[dict],
     origin_city: str,
-    destination_city: str
+    destination_city: str,
+    currency: str = "EUR",
 ) -> str:
     """Format parsed flights into a string Marco can use naturally."""
 
     if not flights:
         return f"No flights found from {origin_city} to {destination_city}."
 
-    lines = [f"Live flight prices from {origin_city} to {destination_city}:"]
+    lines = [f"Live flight prices from {origin_city} to {destination_city} ({currency}):"]
 
     for i, f in enumerate(flights, 1):
-        # Format times cleanly — "2026-05-05 20:40" → "20:40"
         dep_time = f["departure_time"].split(" ")[-1][:5]
         arr_time = f["arrival_time"].split(" ")[-1][:5]
         dep_date = f["departure_time"].split(" ")[0]
+        price_str = _fmt_price(f["price"], currency)
 
         line = (
-            f"{i}. {f['airline']} — {f['price_label']} | "
+            f"{i}. {f['airline']} — {price_str} | "
             f"{f['stop_label']} | {dep_date} {dep_time}→{arr_time} | "
             f"{f['duration']}"
         )
@@ -154,10 +166,10 @@ def format_flights_for_marco(
     cheapest = min(flights, key=lambda x: x["price"])
     fastest = min(flights, key=lambda x: x["total_minutes"])
 
-    lines.append(f"\n💰 Cheapest: {cheapest['price_label']} — {cheapest['airline']} ({cheapest['stop_label']})")
+    lines.append(f"\n💰 Cheapest: {_fmt_price(cheapest['price'], currency)} — {cheapest['airline']} ({cheapest['stop_label']})")
 
     if fastest["price"] != cheapest["price"]:
-        lines.append(f"⚡ Fastest: {fastest['duration']} — {fastest['airline']} ({fastest['price_label']})")
+        lines.append(f"⚡ Fastest: {fastest['duration']} — {fastest['airline']} ({_fmt_price(fastest['price'], currency)})")
 
     return "\n".join(lines)
 

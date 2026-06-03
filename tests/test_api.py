@@ -11,6 +11,11 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from backend.api.app import app
+from backend.auth.deps import get_current_user
+
+# Override auth so tests never need a real JWT
+_MOCK_USER = {"id": 1, "google_id": "g123", "email": "test@example.com", "name": "Test User", "picture": ""}
+app.dependency_overrides[get_current_user] = lambda: _MOCK_USER
 
 client = TestClient(app)
 

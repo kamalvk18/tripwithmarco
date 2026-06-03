@@ -24,9 +24,10 @@ def _row_to_summary(row: Trip) -> dict:
     }
 
 
-def _trip_to_row(trip_id: str, trip_data: dict) -> Trip:
+def _trip_to_row(trip_id: str, trip_data: dict, user_id: int | None = None) -> Trip:
     return Trip(
         trip_id=trip_id,
+        user_id=user_id,
         destination=trip_data.get("destination", ""),
         start_date=trip_data.get("start_date", ""),
         end_date=trip_data.get("end_date", ""),
@@ -40,21 +41,24 @@ def _trip_to_row(trip_id: str, trip_data: dict) -> Trip:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def save_trip(trip_data: dict) -> str:
+def save_trip(trip_data: dict, user_id: int | None = None) -> str:
     """Persist a new trip. Returns the generated trip_id."""
     trip_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     trip_data["trip_id"] = trip_id
     trip_data["saved_at"] = datetime.now().isoformat()
     with SessionLocal() as session:
-        session.add(_trip_to_row(trip_id, trip_data))
+        session.add(_trip_to_row(trip_id, trip_data, user_id))
         session.commit()
     return trip_id
 
 
-def load_trip(trip_id: str) -> dict | None:
-    """Load a single trip by ID. Returns None if not found."""
+def load_trip(trip_id: str, user_id: int | None = None) -> dict | None:
+    """Load a single trip by ID. Filters by user_id when provided."""
     with SessionLocal() as session:
-        row = session.get(Trip, trip_id)
+        query = session.query(Trip).filter(Trip.trip_id == trip_id)
+        if user_id is not None:
+            query = query.filter(Trip.user_id == user_id)
+        row = query.first()
         if row is None:
             return None
         trip = json.loads(row.data)
@@ -63,17 +67,22 @@ def load_trip(trip_id: str) -> dict | None:
         return trip
 
 
-def list_trips() -> list:
-    """Return summary dicts for all trips, newest first."""
+def list_trips(user_id: int | None = None) -> list:
+    """Return summary dicts for trips, newest first. Filtered by user_id when provided."""
     with SessionLocal() as session:
-        rows = session.query(Trip).order_by(Trip.saved_at.desc()).all()
-        return [_row_to_summary(r) for r in rows]
+        query = session.query(Trip).order_by(Trip.saved_at.desc())
+        if user_id is not None:
+            query = query.filter(Trip.user_id == user_id)
+        return [_row_to_summary(r) for r in query.all()]
 
 
-def update_trip(trip_id: str, trip_data: dict) -> bool:
+def update_trip(trip_id: str, trip_data: dict, user_id: int | None = None) -> bool:
     """Overwrite an existing trip with new data. Returns False if not found."""
     with SessionLocal() as session:
-        row = session.get(Trip, trip_id)
+        query = session.query(Trip).filter(Trip.trip_id == trip_id)
+        if user_id is not None:
+            query = query.filter(Trip.user_id == user_id)
+        row = query.first()
         if row is None:
             return False
         row.destination = trip_data.get("destination", row.destination)
@@ -87,10 +96,13 @@ def update_trip(trip_id: str, trip_data: dict) -> bool:
     return True
 
 
-def delete_trip(trip_id: str) -> bool:
+def delete_trip(trip_id: str, user_id: int | None = None) -> bool:
     """Delete a trip by ID. Returns False if not found."""
     with SessionLocal() as session:
-        row = session.get(Trip, trip_id)
+        query = session.query(Trip).filter(Trip.trip_id == trip_id)
+        if user_id is not None:
+            query = query.filter(Trip.user_id == user_id)
+        row = query.first()
         if row is None:
             return False
         session.delete(row)
@@ -100,14 +112,14 @@ def delete_trip(trip_id: str) -> bool:
 
 # ── Seeding & migration ───────────────────────────────────────────────────────
 
-def _upsert_from_dict(session, trip_data: dict) -> bool:
+def _upsert_from_dict(session, trip_data: dict, user_id: int | None = None) -> bool:
     """Insert trip if trip_id not already in DB. Returns True if inserted."""
     trip_id = trip_data.get("trip_id")
     if not trip_id:
         return False
     if session.get(Trip, trip_id) is not None:
         return False
-    session.add(_trip_to_row(trip_id, trip_data))
+    session.add(_trip_to_row(trip_id, trip_data, user_id))
     return True
 
 

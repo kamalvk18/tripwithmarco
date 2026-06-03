@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { PlusCircle, Trash2, TrendingUp } from 'lucide-react'
 import { formatMoney } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import { apiFetch } from '@/lib/api'
 
 const CATEGORIES = ['flights', 'accommodation', 'food', 'activities', 'transport', 'misc']
 const CAT_ICONS  = { flights: '✈️', accommodation: '🏨', food: '🍽️', activities: '🎟️', transport: '🚌', misc: '💼' }
 
 async function apiAddExpense(tripId, expense) {
-  const res = await fetch(`/api/trips/${tripId}/expenses`, {
+  const res = await apiFetch(`/api/trips/${tripId}/expenses`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(expense),
@@ -17,7 +18,7 @@ async function apiAddExpense(tripId, expense) {
 }
 
 async function apiDeleteExpense(tripId, expenseId) {
-  const res = await fetch(`/api/trips/${tripId}/expenses/${expenseId}`, { method: 'DELETE' })
+  const res = await apiFetch(`/api/trips/${tripId}/expenses/${expenseId}`, { method: 'DELETE' })
   return res.ok
 }
 

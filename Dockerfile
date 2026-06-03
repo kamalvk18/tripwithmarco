@@ -1,37 +1,14 @@
-# ── Stage 1: Build React frontend ─────────────────────────────────────────────
-FROM node:22-alpine AS frontend-builder
-WORKDIR /app/frontend
-
-COPY frontend/package*.json ./
-RUN npm ci
-
-COPY frontend/ ./
-RUN npm run build
-# output → /app/frontend/dist
-
-
-# ── Stage 2: Python backend ────────────────────────────────────────────────────
-FROM python:3.14-slim AS final
+FROM python:3.12-slim
 WORKDIR /app
 
-# Install uv (fast Python package manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
-# Install dependencies (no dev deps, frozen lockfile)
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy source
 COPY backend/ ./backend/
 COPY main.py ./
 
-# Copy built React app from Stage 1
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-
-# Persistent storage lives on a Fly volume at /data
-RUN mkdir -p /data
-
-ENV DB_FILE=/data/trips.db
 ENV PORT=8080
 
 EXPOSE 8080

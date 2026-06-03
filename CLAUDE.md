@@ -81,18 +81,50 @@ Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db`
 3. Add a dispatch case in `backend/agents/tool_executor.py:execute_tool()`.
 4. Update `backend/prompts/marco.md` with when and how Marco should use it.
 
+## Deployment Architecture
+
+Production stack: **Neon** (Postgres) + **Render** (backend) + **Vercel** (frontend).
+
+### Backend — Render
+- Deploy via Docker (`Dockerfile` is Python-only; no Node stage)
+- Set all env vars as Render environment variables
+- `DATABASE_URL` must point to the Neon connection string
+
+### Frontend — Vercel
+- Root directory: `frontend/`
+- Build command: `npm run build` / output: `dist`
+- `vercel.json` handles SPA rewrites (already committed)
+- Set `VITE_API_URL` = your Render backend URL (e.g. `https://solo-travel-agent.onrender.com`)
+
+### Database — Neon (Postgres)
+- Copy the connection string from Neon dashboard → set as `DATABASE_URL` on Render
+- One-time migration from SQLite:
+  ```bash
+  SQLITE_FILE=data/trips.db DATABASE_URL=postgresql://... uv run scripts/migrate_to_postgres.py
+  ```
+
+### Google OAuth
+After deploying, add to Google Cloud Console → OAuth client → Authorized redirect URIs:
+- `https://<render-app>.onrender.com/api/auth/google/callback`
+
+And to Authorized JavaScript origins:
+- `https://<vercel-app>.vercel.app`
+
 ## Environment Variables
 
-Required in `.env`:
+Required in `.env` (local) / Render env vars (production):
 - `ANTHROPIC_API_KEY` — Claude API
 - `OPENWEATHER_API_KEY` — Free tier at openweathermap.org
 - `SERPAPI_KEY` — Free tier: 250 searches/month
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google OAuth
+- `JWT_SECRET` — random secret for signing JWTs
+- `FRONTEND_URL` — frontend origin (e.g. `https://<app>.vercel.app`); used for OAuth redirect
 
 Optional:
 - `DATABASE_URL` — SQLAlchemy URL (defaults to `sqlite:///data/trips.db`; set to `postgresql://...` for Postgres)
-- `DB_FILE` — SQLite file path (defaults to `data/trips.db`; Fly.io uses `/data/trips.db`)
-- `AUTH_USER` / `AUTH_PASS` — Enable HTTP Basic Auth (leave unset for local dev)
-- `CRON_SECRET` — Protects the `/api/send-briefings` cron endpoint
+- `ALLOWED_ORIGINS` — comma-separated extra CORS origins (e.g. your Vercel URL)
+- `CRON_SECRET` — protects the `/api/send-briefings` cron endpoint
+- `RESEND_API_KEY` / `RESEND_FROM` — email briefing delivery
 
 ## Itinerary Parsing
 

@@ -61,17 +61,20 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
             return result
 
         elif tool_name == "search_flights":
+            currency = tool_input.get("currency", "EUR")
             flights = search_flights(
                 origin=tool_input["origin_iata"],
                 destination=tool_input["destination_iata"],
                 outbound_date=tool_input["outbound_date"],
                 return_date=tool_input.get("return_date"),
+                currency=currency,
                 max_results=5,
             )
             result = format_flights_for_marco(
                 flights,
                 tool_input["origin_city"],
                 tool_input["destination_city"],
+                currency=currency,
             )
             set_cached(tool_name, tool_input, result)
             return result

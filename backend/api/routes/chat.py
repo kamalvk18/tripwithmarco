@@ -13,9 +13,10 @@ SSE format:
 
 import json
 import queue
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
+from backend.auth.deps import get_current_user
 
 from backend.agents.planning_agent import (
     chat,
@@ -82,7 +83,7 @@ async def _sse_stream(messages: list, trip_data: dict | None, companion_mode: bo
 
 
 @router.post("/stream")
-async def stream_chat(req: ChatRequest):
+async def stream_chat(req: ChatRequest, _: dict = Depends(get_current_user)):
     """
     Stream Marco's response as Server-Sent Events.
 
@@ -110,7 +111,7 @@ async def stream_chat(req: ChatRequest):
 
 
 @router.post("")
-async def chat_sync(req: ChatRequest):
+async def chat_sync(req: ChatRequest, _: dict = Depends(get_current_user)):
     """
     Non-streaming chat — collects the full response and returns it as JSON.
     Useful for testing or clients that don't support SSE.
@@ -144,7 +145,7 @@ async def get_weather(city: str, country_code: str = ""):
 
 
 @router.post("/extract", response_model=ExtractResponse)
-async def extract_info(req: ExtractRequest):
+async def extract_info(req: ExtractRequest, _: dict = Depends(get_current_user)):
     """
     Run post-generation extraction on a completed conversation.
 

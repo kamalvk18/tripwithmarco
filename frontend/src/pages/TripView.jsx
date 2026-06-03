@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
-  RefreshCw, Navigation, RotateCcw, Download,
-  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed,
+  RefreshCw, Navigation, RotateCcw, Download, Plane,
+  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed, Map,
 } from 'lucide-react'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
 import { saveDebrief, patchTrip } from '@/lib/api'
@@ -12,6 +13,7 @@ import { useSSEChat } from '@/hooks/useSSEChat'
 import { useWeatherCache } from '@/hooks/useWeatherCache'
 import { useNearMe } from '@/hooks/useNearMe'
 import { DayCard } from '@/components/DayCard'
+import { TripMap } from '@/components/TripMap'
 import { BudgetPanel } from '@/components/BudgetPanel'
 import { ChatPanel } from '@/components/ChatPanel'
 import { ExpenseTracker } from '@/components/ExpenseTracker'
@@ -40,6 +42,15 @@ export default function TripView() {
 
   const { locate, locating } = useNearMe()
 
+  const mapDays = useMemo(
+    () => days.map(day => ({
+      ...day,
+      content: tripData?.day_overrides?.[String(day.num)] ?? day.content,
+    })),
+    [days, tripData?.day_overrides]
+  )
+
+  const [showMap, setShowMap]             = useState(false)
   const [showCompanion, setShowCompanion] = useState(false)
   const [weatherText, setWeatherText]     = useState(null)
   const [rebuilding, setRebuilding]       = useState(false)
@@ -199,6 +210,29 @@ export default function TripView() {
     })
   }
 
+  // ── Continue planning (no itinerary yet) ─────────────────────────────────
+  function handleContinuePlanning() {
+    navigate('/plan', {
+      state: {
+        resume: {
+          tripId:   id,
+          messages: messages,
+          meta: {
+            destination:            tripData.destination    ?? '',
+            destinationCountryCode: tripData.country_code   ?? '',
+            origin:                 tripData.origin         ?? '',
+            startDate:              tripData.start_date     ?? '',
+            endDate:                tripData.end_date       ?? '',
+            budget:                 String(tripData.budget ?? ''),
+            currency:               tripData.currency       ?? 'EUR',
+            hasTwoWheelerLicence:   tripData.has_two_wheeler_licence  ?? false,
+            hasFourWheelerLicence:  tripData.has_four_wheeler_licence ?? false,
+          },
+        },
+      },
+    })
+  }
+
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete() {
     if (!confirm('Delete this trip? This cannot be undone.')) return
@@ -277,9 +311,22 @@ export default function TripView() {
             {debriefing ? 'Getting debrief…' : 'Post-Trip Debrief'}
           </Button>
         )}
+        {days.length === 0 && (
+          <Button variant="primary" onClick={handleContinuePlanning}>
+            <Plane size={14} /> Continue Planning
+          </Button>
+        )}
         <Button variant="secondary" onClick={handleRegenerate}>
           <RotateCcw size={14} /> Regenerate Plan
         </Button>
+        {days.length > 0 && (
+          <Button
+            variant={showMap ? 'primary' : 'ghost'}
+            onClick={() => setShowMap(m => !m)}
+          >
+            <Map size={14} /> {showMap ? 'Hide Map' : 'Map'}
+          </Button>
+        )}
         <Button variant="ghost" onClick={() => setShowExport(e => !e)}>
           <Download size={14} /> Export
         </Button>
@@ -405,7 +452,7 @@ export default function TripView() {
           </div>
           {rebuildText && (
             <div className={`prose prose-sm max-w-none ${streaming ? 'streaming-cursor' : ''}`}>
-              <ReactMarkdown>{rebuildText}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{rebuildText}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -420,7 +467,7 @@ export default function TripView() {
           </div>
           {debriefText && (
             <div className="prose prose-sm max-w-none text-slate-200 streaming-cursor">
-              <ReactMarkdown>{debriefText}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{debriefText}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -433,7 +480,7 @@ export default function TripView() {
             📋 Post-Trip Debrief
           </p>
           <div className="prose prose-sm max-w-none text-slate-300">
-            <ReactMarkdown>{tripData.debrief}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{tripData.debrief}</ReactMarkdown>
           </div>
           {tripData.preferences?.length > 0 && (
             <div className="mt-4 pt-4 border-t border-violet-700/30">
@@ -487,10 +534,19 @@ export default function TripView() {
           </div>
           {(nearMeText || tripData.near_me_response) && (
             <div className={`prose prose-sm max-w-none text-slate-200 ${nearMeActive ? 'streaming-cursor' : ''}`}>
-              <ReactMarkdown>{nearMeText || tripData.near_me_response}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{nearMeText || tripData.near_me_response}</ReactMarkdown>
             </div>
           )}
         </div>
+      )}
+
+      {/* Map view */}
+      {showMap && days.length > 0 && (
+        <TripMap
+          days={mapDays}
+          destination={tripData.destination}
+          city={tripData.city}
+        />
       )}
 
       {/* Day cards */}
@@ -512,7 +568,7 @@ export default function TripView() {
       ) : (
         <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] p-5 mb-8">
           <div className="prose prose-sm max-w-none">
-            <ReactMarkdown>{itinerary}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{itinerary}</ReactMarkdown>
           </div>
         </div>
       )}

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { PlusCircle, Map, Globe, ChevronRight } from 'lucide-react'
+import { PlusCircle, Map, Globe, ChevronRight, LogOut } from 'lucide-react'
 import { listTrips } from '@/lib/api'
 import { tripStatus } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 import { Badge } from '@/components/ui/Badge'
 
 export function Layout({ children }) {
-  const [trips, setTrips]       = useState([])
+  const [trips, setTrips]         = useState([])
   const [collapsed, setCollapsed] = useState(false)
+  const { user, logout }          = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -17,6 +19,11 @@ export function Layout({ children }) {
       .then(setTrips)
       .catch(() => setTrips([]))
   }, [location.pathname])
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="flex w-full min-h-screen">
@@ -101,6 +108,44 @@ export function Layout({ children }) {
             ))}
           </div>
         )}
+
+        {/* User footer */}
+        <div className={`border-t border-[#2e3248] px-3 py-3 ${collapsed ? 'flex justify-center' : ''}`}>
+          {collapsed ? (
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-colors cursor-pointer"
+            >
+              <LogOut size={16} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              {user?.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name}
+                  className="w-7 h-7 rounded-full shrink-0 ring-1 ring-[#2e3248]"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-indigo-700 shrink-0 flex items-center justify-center text-xs text-white font-semibold">
+                  {user?.name?.[0]?.toUpperCase() ?? '?'}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-slate-200 truncate">{user?.name}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="shrink-0 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-colors cursor-pointer"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* Main */}

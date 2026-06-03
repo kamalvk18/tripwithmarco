@@ -77,6 +77,10 @@ TOOL_DEFINITIONS = [
                 "return_date": {
                     "type": "string",
                     "description": "Return date in YYYY-MM-DD format. Omit for one-way."
+                },
+                "currency": {
+                    "type": "string",
+                    "description": "ISO 4217 currency code for prices e.g. EUR, USD, INR, GBP. Use the user's selected currency."
                 }
             },
             "required": [
@@ -84,7 +88,8 @@ TOOL_DEFINITIONS = [
                 "origin_city",
                 "destination_iata",
                 "destination_city",
-                "outbound_date"
+                "outbound_date",
+                "currency"
             ]
         }
     },

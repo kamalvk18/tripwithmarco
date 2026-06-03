@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 const AuthContext = createContext(null)
 
 const TOKEN_KEY = 'sta_auth_token'
+const API_BASE  = (import.meta.env.VITE_API_URL ?? '') + '/api'
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
@@ -13,7 +14,7 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) { setLoading(false); return }
 
-    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => (r.ok ? r.json() : null))
       .then(u => { setUser(u); setLoading(false) })
       .catch(() => { localStorage.removeItem(TOKEN_KEY); setLoading(false) })
@@ -21,7 +22,7 @@ export function AuthProvider({ children }) {
 
   async function loginWithToken(token) {
     localStorage.setItem(TOKEN_KEY, token)
-    const res = await fetch('/api/auth/me', {
+    const res = await fetch(`${API_BASE}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {

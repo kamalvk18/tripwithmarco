@@ -20,7 +20,7 @@ export default function Login() {
           </p>
 
           <a
-            href="/api/auth/google/login"
+            href={`${import.meta.env.VITE_API_URL ?? ''}/api/auth/google/login`}
             className="flex items-center justify-center gap-3 w-full rounded-xl
               bg-white text-slate-800 font-medium text-sm px-4 py-3
               hover:bg-slate-100 transition-colors"

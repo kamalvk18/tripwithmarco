@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Plane, Send, Save } from 'lucide-react'
+import { toolLabel } from '@/lib/utils'
 import { extractInfo, listTrips, saveTrip, updateTrip } from '@/lib/api'
 import { invalidateTripCache } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
@@ -106,6 +107,10 @@ export default function PlanTrip() {
   const [draftSaved, setDraftSaved]     = useState(!!resume)
   // True once Marco has written a full day-by-day itinerary — shows the Save button
   const [itineraryReady, setItineraryReady] = useState(false)
+  // Planning screen state (new trip only — hidden for resume)
+  const [stepHistory, setStepHistory]     = useState([])
+  const [writingItinerary, setWritingItinerary] = useState(false)
+  const [planningFailed, setPlanningFailed]     = useState(false)
   const responseRef      = useRef('')
   const draftIdRef       = useRef(resume?.tripId ?? null)
   const draftMetaRef     = useRef(resume?.meta   ?? null)
@@ -177,19 +182,21 @@ export default function PlanTrip() {
       : '?'
     const styles = form.travelStyles.join(', ') || 'flexible'
     return [
-      `I want to plan a trip to ${form.destination} from ${form.origin}.`,
+      `Plan my trip with these details:`,
+      `Destination: ${form.destination}.`,
+      `Flying from: ${form.origin}.`,
       `Dates: ${form.startDate} to ${form.endDate} (${nights} nights).`,
       `Budget: ${form.budget} ${form.currency}.`,
       `Travel style: ${styles}.`,
       form.dietary !== 'None' ? `Dietary: ${form.dietary}.` : '',
       form.hasTwoWheelerLicence && form.hasFourWheelerLicence
-        ? "I have both a two-wheeler and a four-wheeler driving licence."
-        : form.hasTwoWheelerLicence  ? "I have a two-wheeler (bike/scooter) driving licence."
-        : form.hasFourWheelerLicence ? "I have a four-wheeler (car) driving licence."
+        ? "Driving licences: two-wheeler and four-wheeler."
+        : form.hasTwoWheelerLicence  ? "Driving licence: two-wheeler (bike/scooter)."
+        : form.hasFourWheelerLicence ? "Driving licence: four-wheeler (car)."
         : '',
-      form.notes ? `Extra notes: ${form.notes}` : '',
+      form.notes ? `Extra notes: ${form.notes}.` : '',
       pastPreferences.length > 0
-        ? `Based on my past trips, here are my known travel preferences: ${pastPreferences.join('; ')}.`
+        ? `My past travel preferences: ${pastPreferences.join('; ')}.`
         : '',
     ].filter(Boolean).join(' ')
   }
@@ -203,10 +210,22 @@ export default function PlanTrip() {
     setQuickReplies([])        // clear option buttons on every new send
     responseRef.current = ''
     setStreamText('')
+    // Reset planning screen state for each new planning turn
+    if (!resume) {
+      setStepHistory([])
+      setWritingItinerary(false)
+      setPlanningFailed(false)
+    }
 
     await send({
       messages: withUser,
+      onToolCall: (name) => {
+        if (!resume) {
+          setStepHistory(prev => [...prev, name])
+        }
+      },
       onChunk: (chunk) => {
+        if (!resume) setWritingItinerary(true)
         responseRef.current += chunk
         setStreamText(responseRef.current)
       },
@@ -219,12 +238,25 @@ export default function PlanTrip() {
         setMessages(finalMessages)
         setStreamText('')
 
+        const gotItinerary = hasFullItinerary(responseRef.current)
+
         // Surface any [OPTION: ...] choices as quick-reply buttons
         setQuickReplies(extractOptions(responseRef.current))
 
-        // Show the Save button once Marco has produced a full day-by-day itinerary.
-        if (hasFullItinerary(responseRef.current)) {
+        if (gotItinerary) {
           setItineraryReady(true)
+        }
+
+        // New trip: auto-navigate to trip view once itinerary is ready.
+        // Resume/chat mode: keep the conversation going with Save button.
+        if (gotItinerary && !resume) {
+          saveAndNavigate(finalMessages)
+          return
+        }
+
+        if (!gotItinerary && !resume) {
+          // Marco asked a clarifying question — fall back to chat mode
+          setPlanningFailed(true)
         }
 
         // Auto-persist as draft after every turn (fire-and-forget — onDone isn't
@@ -267,6 +299,7 @@ export default function PlanTrip() {
         budget:        parseFloat(form.budget) || 0,
         currency:      form.currency,
         budget_breakdown: extracted.budget_breakdown || {},
+        days:          extracted.days?.length > 0 ? extracted.days : undefined,
         messages:      msgs,
         day_overrides: {},
       }
@@ -465,7 +498,133 @@ export default function PlanTrip() {
     )
   }
 
-  // ── Render: chat (after first send) ────────────────────────────────────────
+  // ── Render: planning screen (new trip — handles loading, clarification, saving) ─
+  if (started && !resume) {
+    const steps = stepHistory.map((name, i) => {
+      const isLast = i === stepHistory.length - 1
+      const isDone = !isLast || writingItinerary || !streaming
+      return { name, isDone }
+    })
+    const lastMarcoMsg = [...messages].reverse().find(m => m.role === 'assistant')
+    const showLoader = !planningFailed && !saving && (streaming || steps.length > 0 || writingItinerary)
+    const showClarify = planningFailed && !streaming && !saving
+
+    return (
+      <div className="max-w-lg mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
+            <Plane className="text-indigo-400" size={20} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-100">{form.destination}</h1>
+            <p className="text-slate-500 text-xs">
+              {form.startDate} → {form.endDate}
+              {form.budget ? ` · ${form.budget} ${form.currency}` : ''}
+            </p>
+          </div>
+        </div>
+
+        {/* Tool-step loader */}
+        {showLoader && (
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="space-y-3 max-w-xs">
+              {steps.length === 0 && streaming && (
+                <div className="flex items-center gap-3 text-sm text-indigo-300">
+                  <Spinner className="w-4 h-4 shrink-0" />
+                  <span>Marco is thinking…</span>
+                </div>
+              )}
+              {steps.map(({ name, isDone }, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 text-sm transition-colors ${
+                    isDone ? 'text-slate-300' : 'text-indigo-300'
+                  }`}
+                >
+                  {isDone
+                    ? <span className="text-emerald-400 w-4 shrink-0 text-base leading-none">✓</span>
+                    : <Spinner className="w-4 h-4 shrink-0" />}
+                  <span>{toolLabel(name)}</span>
+                </div>
+              ))}
+              {writingItinerary && (
+                <div className={`flex items-center gap-3 text-sm ${streaming ? 'text-indigo-300' : 'text-slate-300'}`}>
+                  {streaming
+                    ? <Spinner className="w-4 h-4 shrink-0" />
+                    : <span className="text-emerald-400 w-4 shrink-0 text-base leading-none">✓</span>}
+                  <span>✍️ Writing your itinerary…</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Saving */}
+        {saving && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <Spinner className="w-6 h-6 text-indigo-400" />
+            <p className="text-sm text-slate-400">Saving your trip…</p>
+          </div>
+        )}
+
+        {/* Clarification — Marco needs input before generating the plan */}
+        {showClarify && lastMarcoMsg && (
+          <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
+                text-white text-xs font-bold shrink-0 mt-0.5">M</div>
+              <div className="bg-[#1a1d27] border border-[#2e3248] rounded-2xl rounded-tl-sm
+                px-4 py-3 text-sm text-slate-200 flex-1">
+                <div className="prose prose-sm prose-invert max-w-none
+                  prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(lastMarcoMsg.content)}</ReactMarkdown>
+                </div>
+              </div>
+            </div>
+
+            {quickReplies.length > 0 && (
+              <div className="flex flex-wrap gap-2 pl-10">
+                {quickReplies.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => sendMessage(opt)}
+                    className="px-4 py-2 rounded-full text-sm border border-indigo-600/60
+                      bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/40
+                      hover:border-indigo-500 transition-colors cursor-pointer"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Input — visible when Marco is waiting for a reply (clarification or mid-stream) */}
+        {!saving && (showClarify || (streaming && planningFailed)) && (
+          <form onSubmit={handleChat} className="flex gap-2 mt-4 sticky bottom-4">
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              disabled={streaming}
+              placeholder={streaming ? 'Marco is thinking…' : 'Reply to Marco…'}
+              className="flex-1 rounded-xl bg-[#22263a] border border-[#2e3248] text-slate-200
+                px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
+                transition-colors disabled:opacity-50"
+            />
+            <Button type="submit" variant="primary" disabled={streaming || !input.trim()} className="px-4">
+              <Send size={16} />
+            </Button>
+          </form>
+        )}
+      </div>
+    )
+  }
+
+  // ── Render: chat (resume mode only) ────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Header */}

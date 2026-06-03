@@ -47,7 +47,7 @@ export function extractAllDays(text) {
   //   ^([ \t]* optional-# optional-** Day N optional-** optional-: rest)$
   // The $ anchor (with m flag) is the key guard: "Day 1 is REST DAY..."
   // does NOT end at $ unless the whole line IS that heading.
-  const headingRe = /^([ \t]*(?:#{1,3}[ \t]*)?\*{0,2}(?:Day|DAY)[ \t]+(\d+)(?:\*{0,2})?[ \t]*(?:[-—–:][^\n]*)?)$/gim
+  const headingRe = /^([ \t]*(?:#{1,3}[ \t]*[^\w\n]*[ \t]*)?\*{0,2}(?:Day|DAY)[ \t]+(\d+)(?:\*{0,2})?[ \t]*(?:[-—–:][^\n]*)?)$/gim
 
   // Collect all heading matches
   const allMatches = []

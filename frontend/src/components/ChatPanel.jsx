@@ -154,9 +154,21 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
   const placeholder = companion
     ? "What's the weather like? Should I change today's plan?"
     : 'Ask a follow-up…'
-  const emptyHint = companion
-    ? "Ask Marco about today's weather, what to prioritise, or how to adjust the plan."
-    : "Ask Marco anything — refine the plan, get local tips, or explore alternatives."
+
+  const dest = tripData?.city || tripData?.destination || 'the destination'
+  const suggestions = companion
+    ? [
+        "What should I prioritise today?",
+        "Any food spots I shouldn't miss nearby?",
+        "I have extra time — what do you recommend?",
+        "Should I adjust today's plan?",
+      ]
+    : [
+        `What should I pack for ${dest}?`,
+        "Any hidden gems I shouldn't miss?",
+        "How can I trim costs on this trip?",
+        "Add a day trip to the itinerary",
+      ]
 
   return (
     <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] overflow-hidden">
@@ -191,7 +203,20 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
           {/* Message list */}
           <div ref={scrollRef} className="flex flex-col gap-4 p-5 max-h-[520px] overflow-y-auto">
             {isEmpty && (
-              <p className="text-xs text-slate-500 text-center py-4">{emptyHint}</p>
+              <div className="py-2 space-y-2">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={(e) => handleSend(e, s)}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm border border-[#2e3248]
+                      bg-[#1a1d27] text-slate-400 hover:text-slate-200 hover:border-indigo-500/50
+                      transition-colors cursor-pointer"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             )}
 
             {followUps.map((msg, i) => (

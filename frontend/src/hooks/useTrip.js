@@ -57,17 +57,23 @@ export function useTrip(id) {
         setLoading(false)
       }
 
-      // Background upgrade: extract budget breakdown if missing.
+      // Background upgrade: extract structured days + budget breakdown if missing.
       // Runs after the trip is already displayed so there is no loading block.
-      // The signal ensures the Haiku call is cancelled (not just ignored) if the
-      // user navigates away before it completes.
       const missingBreakdown =
         !data.budget_breakdown || Object.keys(data.budget_breakdown).length === 0
-      if (missingBreakdown && (data.messages ?? []).length > 0) {
+      const missingDays = !data.days?.length
+      if ((missingBreakdown || missingDays) && (data.messages ?? []).length > 0) {
         const extracted = await extractInfo(data.messages, data.currency ?? 'EUR', signal)
         const bd = extracted?.budget_breakdown
-        if (bd && Object.values(bd).some(v => v != null)) {
-          const upgraded = { ...data, budget_breakdown: bd }
+        const extractedDays = extracted?.days
+        const hasBd   = bd && Object.values(bd).some(v => v != null)
+        const hasDays = extractedDays?.length > 0
+        if (hasBd || hasDays) {
+          const upgraded = {
+            ...data,
+            ...(hasBd   ? { budget_breakdown: bd }          : {}),
+            ...(hasDays ? { days: extractedDays }            : {}),
+          }
           tripCache.set(id, upgraded)
           setTripData(upgraded)
           updateTrip(id, upgraded).catch(() => {})
@@ -91,7 +97,18 @@ export function useTrip(id) {
 
   const messages  = useMemo(() => tripData?.messages ?? [], [tripData])
   const itinerary = useMemo(() => computeItinerary(messages), [messages])
-  const days      = useMemo(() => extractAllDays(itinerary), [itinerary])
+  // Prefer structured days stored at save time; fall back to regex parsing for old trips.
+  // Normalize `day` field from backend schema to `num` expected by DayCard.
+  const days      = useMemo(() => {
+    if (tripData?.days?.length > 0) {
+      return tripData.days.map(d => ({
+        num:     d.num  ?? d.day,
+        title:   d.title,
+        content: d.content,
+      }))
+    }
+    return extractAllDays(itinerary)
+  }, [tripData?.days, itinerary])
   const { status, label, dayNum } = useMemo(
     () => tripStatus(tripData ?? {}),
     [tripData]

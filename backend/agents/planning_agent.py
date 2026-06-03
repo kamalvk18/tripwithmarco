@@ -199,7 +199,7 @@ def extract_all_days(itinerary: str) -> list[dict]:
     #   (?:-\d+)?       — handles day ranges like "5-6"
     #   (?:\s*\([^)]*\))?  — handles parenthetical dates like "(May 28)"
     heading_pattern = re.compile(
-        r'(?im)^([ \t]*(?:#{1,3}[ \t]*)?\*{0,2}(?:DAY|Day)[ \t]+(\d+)(?:-\d+)?(?:\*{0,2})?(?:\s*\([^)]*\))?[ \t]*(?:[-—–:][^\n]*)?)$'
+        r'(?im)^([ \t]*(?:#{1,3}[ \t]*[^\w\n]*[ \t]*)?\*{0,2}(?:DAY|Day)[ \t]+(\d+)(?:-\d+)?(?:\*{0,2})?(?:\s*\([^)]*\))?[ \t]*(?:[-—–:][^\n]*)?)$'
     )
     matches = list(heading_pattern.finditer(itinerary))
     if not matches:

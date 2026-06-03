@@ -30,7 +30,7 @@ export default function TripView() {
   // ── Data & derived state (all trip concerns live in the hook) ──────────────
   const {
     tripData, loading,
-    messages, itinerary, days,
+    messages, days,
     status, label, dayNum,
     saveMessages, updateSpending, updateChecklist, updateEmailConfig,
     updateDayOverride, updateDebrief, updateNearMe, getCachedNearMeResponse, remove,
@@ -566,10 +566,9 @@ export default function TripView() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] p-5 mb-8">
-          <div className="prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{itinerary}</ReactMarkdown>
-          </div>
+        <div className="rounded-xl border border-dashed border-[#2e3248] p-8 mb-8 text-center">
+          <p className="text-slate-400 text-sm">No itinerary yet.</p>
+          <p className="text-slate-500 text-xs mt-1">Use "Continue Planning" above to finish building your trip.</p>
         </div>
       )}
 

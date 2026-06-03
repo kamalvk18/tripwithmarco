@@ -16,14 +16,14 @@ const DIETARY = ['None', 'Vegetarian', 'Vegan', 'Halal', 'Kosher', 'Gluten-free'
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'AUD', 'CAD', 'JPY', 'SGD', 'INR']
 
 function Label({ children }) {
-  return <label className="block text-sm font-medium text-slate-300 mb-1">{children}</label>
+  return <label className="block text-sm font-medium text-slate-700 mb-1">{children}</label>
 }
 function Input({ className = '', ...props }) {
   return (
     <input
-      className={`w-full rounded-lg bg-[#22263a] border border-[#2e3248] text-slate-200
-        px-3 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
-        transition-colors ${className}`}
+      className={`w-full rounded-lg bg-white border border-slate-200 text-slate-800
+        px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400
+        focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm ${className}`}
       {...props}
     />
   )
@@ -31,8 +31,9 @@ function Input({ className = '', ...props }) {
 function Select({ children, ...props }) {
   return (
     <select
-      className="w-full rounded-lg bg-[#22263a] border border-[#2e3248] text-slate-200
-        px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+      className="w-full rounded-lg bg-white border border-slate-200 text-slate-800
+        px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 focus:ring-2
+        focus:ring-indigo-100 transition-all shadow-sm"
       {...props}
     >
       {children}
@@ -343,12 +344,12 @@ export default function PlanTrip() {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10">
         <div className="flex items-center gap-3 mb-8">
-          <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
-            <Plane className="text-indigo-400" size={22} />
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
+            <Plane className="text-white" size={20} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Plan a Trip</h1>
-            <p className="text-slate-400 text-sm">Marco will search live flights, hotels & weather</p>
+            <h1 className="text-2xl font-bold text-slate-900">Plan a Trip</h1>
+            <p className="text-slate-500 text-sm">Marco will search live flights, hotels & weather</p>
           </div>
         </div>
 
@@ -436,8 +437,8 @@ export default function PlanTrip() {
                   onClick={() => toggleStyle(style)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer
                     ${form.travelStyles.includes(style)
-                      ? 'bg-indigo-600 border-indigo-500 text-white'
-                      : 'bg-[#22263a] border-[#2e3248] text-slate-400 hover:border-indigo-600/50'}`}
+                      ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 shadow-sm'}`}
                 >
                   {style}
                 </button>
@@ -484,9 +485,9 @@ export default function PlanTrip() {
               placeholder="Accessibility needs, must-see places, avoid crowds…"
               value={form.notes}
               onChange={e => setField('notes', e.target.value)}
-              className="w-full rounded-lg bg-[#22263a] border border-[#2e3248] text-slate-200
-                px-3 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
-                transition-colors resize-none"
+              className="w-full rounded-lg bg-white border border-slate-200 text-slate-800
+                px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400
+                focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm resize-none"
             />
           </div>
 
@@ -513,11 +514,11 @@ export default function PlanTrip() {
       <div className="max-w-lg mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
-            <Plane className="text-indigo-400" size={20} />
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
+            <Plane className="text-white" size={18} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-100">{form.destination}</h1>
+            <h1 className="text-xl font-bold text-slate-900">{form.destination}</h1>
             <p className="text-slate-500 text-xs">
               {form.startDate} → {form.endDate}
               {form.budget ? ` · ${form.budget} ${form.currency}` : ''}
@@ -530,7 +531,7 @@ export default function PlanTrip() {
           <div className="flex-1 flex flex-col justify-center">
             <div className="space-y-3 max-w-xs">
               {steps.length === 0 && streaming && (
-                <div className="flex items-center gap-3 text-sm text-indigo-300">
+                <div className="flex items-center gap-3 text-sm text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2">
                   <Spinner className="w-4 h-4 shrink-0" />
                   <span>Marco is thinking…</span>
                 </div>
@@ -538,21 +539,21 @@ export default function PlanTrip() {
               {steps.map(({ name, isDone }, i) => (
                 <div
                   key={i}
-                  className={`flex items-center gap-3 text-sm transition-colors ${
-                    isDone ? 'text-slate-300' : 'text-indigo-300'
+                  className={`flex items-center gap-3 text-sm transition-colors px-3 py-2 rounded-lg ${
+                    isDone ? 'text-slate-600 bg-slate-50' : 'text-indigo-600 bg-indigo-50'
                   }`}
                 >
                   {isDone
-                    ? <span className="text-emerald-400 w-4 shrink-0 text-base leading-none">✓</span>
+                    ? <span className="text-emerald-500 w-4 shrink-0 text-base leading-none">✓</span>
                     : <Spinner className="w-4 h-4 shrink-0" />}
                   <span>{toolLabel(name)}</span>
                 </div>
               ))}
               {writingItinerary && (
-                <div className={`flex items-center gap-3 text-sm ${streaming ? 'text-indigo-300' : 'text-slate-300'}`}>
+                <div className={`flex items-center gap-3 text-sm px-3 py-2 rounded-lg ${streaming ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600 bg-slate-50'}`}>
                   {streaming
                     ? <Spinner className="w-4 h-4 shrink-0" />
-                    : <span className="text-emerald-400 w-4 shrink-0 text-base leading-none">✓</span>}
+                    : <span className="text-emerald-500 w-4 shrink-0 text-base leading-none">✓</span>}
                   <span>✍️ Writing your itinerary…</span>
                 </div>
               )}
@@ -573,11 +574,11 @@ export default function PlanTrip() {
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
             <div className="flex items-start gap-3">
               <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
-                text-white text-xs font-bold shrink-0 mt-0.5">M</div>
-              <div className="bg-[#1a1d27] border border-[#2e3248] rounded-2xl rounded-tl-sm
-                px-4 py-3 text-sm text-slate-200 flex-1">
-                <div className="prose prose-sm prose-invert max-w-none
-                  prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100">
+                text-white text-xs font-bold shrink-0 mt-0.5 shadow-sm">M</div>
+              <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm shadow-sm
+                px-4 py-3 text-sm text-slate-700 flex-1">
+                <div className="prose prose-sm max-w-none
+                  prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(lastMarcoMsg.content)}</ReactMarkdown>
                 </div>
               </div>
@@ -590,9 +591,9 @@ export default function PlanTrip() {
                     key={i}
                     type="button"
                     onClick={() => sendMessage(opt)}
-                    className="px-4 py-2 rounded-full text-sm border border-indigo-600/60
-                      bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/40
-                      hover:border-indigo-500 transition-colors cursor-pointer"
+                    className="px-4 py-2 rounded-full text-sm border border-indigo-200
+                      bg-indigo-50 text-indigo-700 hover:bg-indigo-100
+                      hover:border-indigo-300 transition-colors cursor-pointer"
                   >
                     {opt}
                   </button>
@@ -611,9 +612,9 @@ export default function PlanTrip() {
               onChange={e => setInput(e.target.value)}
               disabled={streaming}
               placeholder={streaming ? 'Marco is thinking…' : 'Reply to Marco…'}
-              className="flex-1 rounded-xl bg-[#22263a] border border-[#2e3248] text-slate-200
-                px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
-                transition-colors disabled:opacity-50"
+              className="flex-1 rounded-xl bg-white border border-slate-200 text-slate-800
+                px-4 py-3 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400
+                focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm disabled:opacity-50"
             />
             <Button type="submit" variant="primary" disabled={streaming || !input.trim()} className="px-4">
               <Send size={16} />
@@ -629,11 +630,11 @@ export default function PlanTrip() {
     <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-xl bg-indigo-900/40 border border-indigo-700/40">
-          <Plane className="text-indigo-400" size={18} />
+        <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
+          <Plane className="text-white" size={16} />
         </div>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-slate-100">
+          <h1 className="text-lg font-bold text-slate-900">
             Planning: {form.destination}
           </h1>
           <p className="text-slate-500 text-xs">{form.startDate} → {form.endDate} · {form.budget} {form.currency}</p>
@@ -652,7 +653,7 @@ export default function PlanTrip() {
             {/* Avatar */}
             {msg.role === 'assistant' && (
               <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
-                text-white text-xs font-bold shrink-0 mt-0.5">
+                text-white text-xs font-bold shrink-0 mt-0.5 shadow-sm">
                 M
               </div>
             )}
@@ -660,13 +661,13 @@ export default function PlanTrip() {
             {/* Bubble */}
             <div className={`rounded-2xl px-4 py-3 text-sm max-w-[88%] ${
               msg.role === 'user'
-                ? 'bg-indigo-600 text-white rounded-tr-sm'
-                : 'bg-[#1a1d27] border border-[#2e3248] text-slate-200 rounded-tl-sm'
+                ? 'bg-indigo-600 text-white rounded-tr-sm shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm shadow-sm'
             }`}>
               {msg.role === 'assistant'
                 ? (
-                  <div className="prose prose-sm prose-invert max-w-none
-                    prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100">
+                  <div className="prose prose-sm max-w-none
+                    prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(msg.content)}</ReactMarkdown>
                   </div>
                 )
@@ -684,9 +685,9 @@ export default function PlanTrip() {
                 key={i}
                 type="button"
                 onClick={() => sendMessage(opt)}
-                className="px-4 py-2 rounded-full text-sm border border-indigo-600/60
-                  bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/40
-                  hover:border-indigo-500 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-full text-sm border border-indigo-200
+                  bg-indigo-50 text-indigo-700 hover:bg-indigo-100
+                  hover:border-indigo-300 transition-colors cursor-pointer"
               >
                 {opt}
               </button>
@@ -698,13 +699,13 @@ export default function PlanTrip() {
         {streamingText && (
           <div className="flex items-start gap-3">
             <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
-              text-white text-xs font-bold shrink-0 mt-0.5">
+              text-white text-xs font-bold shrink-0 mt-0.5 shadow-sm">
               M
             </div>
-            <div className="bg-[#1a1d27] border border-[#2e3248] rounded-2xl rounded-tl-sm
-              px-4 py-3 text-sm max-w-[88%] text-slate-200">
-              <div className="prose prose-sm prose-invert max-w-none
-                prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-headings:text-slate-100 streaming-cursor">
+            <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm shadow-sm
+              px-4 py-3 text-sm max-w-[88%] text-slate-700">
+              <div className="prose prose-sm max-w-none
+                prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 streaming-cursor">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(streamingText)}</ReactMarkdown>
               </div>
             </div>
@@ -713,8 +714,8 @@ export default function PlanTrip() {
 
         {/* Tool status */}
         {toolStatus && (
-          <div className="flex items-center gap-2 text-xs text-indigo-300 bg-indigo-900/20
-            border border-indigo-800/40 rounded-lg px-3 py-2 w-fit">
+          <div className="flex items-center gap-2 text-xs text-indigo-600 bg-indigo-50
+            border border-indigo-200 rounded-lg px-3 py-2 w-fit">
             <Spinner className="w-3 h-3" /> {toolStatus}
           </div>
         )}
@@ -723,15 +724,15 @@ export default function PlanTrip() {
         {streaming && !streamingText && !toolStatus && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center
-              text-white text-xs font-bold shrink-0">M</div>
+              text-white text-xs font-bold shrink-0 shadow-sm">M</div>
             <span className="animate-pulse">Marco is thinking…</span>
           </div>
         )}
 
         {/* Saving */}
         {saving && (
-          <div className="flex items-center gap-2 text-xs text-indigo-300 bg-indigo-900/20
-            border border-indigo-800/40 rounded-lg px-3 py-2 w-fit">
+          <div className="flex items-center gap-2 text-xs text-indigo-600 bg-indigo-50
+            border border-indigo-200 rounded-lg px-3 py-2 w-fit">
             <Spinner className="w-3 h-3" /> Saving your trip…
           </div>
         )}
@@ -747,7 +748,7 @@ export default function PlanTrip() {
             onClick={() => saveAndNavigate(messages)}
             className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500
               text-white font-semibold text-sm transition-colors
-              flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40"
+              flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
           >
             <Save size={16} /> Save Trip &amp; Open Itinerary
           </button>
@@ -766,9 +767,9 @@ export default function PlanTrip() {
             onChange={e => setInput(e.target.value)}
             disabled={streaming}
             placeholder={streaming ? 'Marco is typing…' : 'Reply to Marco…'}
-            className="flex-1 rounded-xl bg-[#22263a] border border-[#2e3248] text-slate-200
-              px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
-              transition-colors disabled:opacity-50"
+            className="flex-1 rounded-xl bg-white border border-slate-200 text-slate-800
+              px-4 py-3 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400
+              focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm disabled:opacity-50"
           />
           <Button
             type="submit"

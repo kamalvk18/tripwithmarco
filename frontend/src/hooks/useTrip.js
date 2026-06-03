@@ -40,6 +40,7 @@ export function useTrip(id) {
     const { signal } = controller
 
     async function load() {
+      const wasCached = tripCache.has(id)  // snapshot before any fetch/set
       let data = tripCache.get(id)
 
       if (data) {
@@ -57,22 +58,27 @@ export function useTrip(id) {
         setLoading(false)
       }
 
-      // Background upgrade: extract structured days + budget breakdown if missing.
-      // Runs after the trip is already displayed so there is no loading block.
+      // Background upgrade: on a fresh server fetch (not a session cache hit),
+      // always re-extract to pick up any budget/itinerary changes made in chat.
+      // On cache hits (SPA navigation) only run if data is actually missing.
       const missingBreakdown =
         !data.budget_breakdown || Object.keys(data.budget_breakdown).length === 0
       const missingDays = !data.days?.length
-      if ((missingBreakdown || missingDays) && (data.messages ?? []).length > 0) {
+      const shouldExtract = !wasCached || missingBreakdown || missingDays
+      if (shouldExtract && (data.messages ?? []).length > 0) {
         const extracted = await extractInfo(data.messages, data.currency ?? 'EUR', signal)
         const bd = extracted?.budget_breakdown
         const extractedDays = extracted?.days
-        const hasBd   = bd && Object.values(bd).some(v => v != null)
-        const hasDays = extractedDays?.length > 0
-        if (hasBd || hasDays) {
+        const newBudget = extracted?.budget
+        const hasBd     = bd && Object.values(bd).some(v => v != null)
+        const hasDays   = extractedDays?.length > 0
+        const hasBudget = newBudget != null && newBudget > 0
+        if (hasBd || hasDays || hasBudget) {
           const upgraded = {
             ...data,
-            ...(hasBd   ? { budget_breakdown: bd }          : {}),
-            ...(hasDays ? { days: extractedDays }            : {}),
+            ...(hasBd     ? { budget_breakdown: bd }      : {}),
+            ...(hasDays   ? { days: extractedDays }        : {}),
+            ...(hasBudget ? { budget: newBudget }          : {}),
           }
           tripCache.set(id, upgraded)
           setTripData(upgraded)
@@ -136,7 +142,22 @@ export function useTrip(id) {
     label,
     dayNum,
     // Actions
-    saveMessages:      msgs      => patch({ messages: msgs }),
+    saveMessages: msgs => {
+      const newItinerary = computeItinerary(msgs)
+      const newDays = extractAllDays(newItinerary)
+      const updates = { messages: msgs }
+      if (newDays.length > 0) updates.days = newDays
+
+      // Background: re-extract budget breakdown from updated itinerary
+      extractInfo(msgs, tripData?.currency ?? 'EUR')
+        .then(extracted => {
+          const bd = extracted?.budget_breakdown
+          if (bd && Object.values(bd).some(v => v != null)) patch({ budget_breakdown: bd })
+        })
+        .catch(() => {})
+
+      return patch(updates)
+    },
     updateSpending:    spending  => patch({ spending }),
     updateChecklist:   checklist => patch({ checklist }),
     updateEmailConfig: cfg       => patch({ email_config: cfg }),

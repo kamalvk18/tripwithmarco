@@ -161,12 +161,14 @@ async def extract_info(req: ExtractRequest, _: dict = Depends(get_current_user))
     extracted = extract_trip_details(raw_messages)
     itinerary = extract_itinerary(raw_messages)
     structured = extract_structured_itinerary(itinerary, currency=req.currency)
+    raw_budget = extracted.get("budget")
     return ExtractResponse(
         destination=extracted.get("destination", ""),
         city=extracted.get("city", ""),
         country_code=extracted.get("country_code", ""),
         start_date=extracted.get("start_date", ""),
         end_date=extracted.get("end_date", ""),
+        budget=float(raw_budget) if raw_budget is not None else None,
         days=structured.get("days", []),
         budget_breakdown=structured.get("budget_breakdown", {}),
     )

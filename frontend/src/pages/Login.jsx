@@ -2,28 +2,30 @@ import { Globe } from 'lucide-react'
 
 export default function Login() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-[#12141e] px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-indigo-50 via-white to-sky-50 px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
-          <Globe className="text-indigo-400" size={28} />
-          <span className="text-xl font-semibold text-slate-100 tracking-tight">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
+            <Globe className="text-white" size={20} />
+          </div>
+          <span className="text-xl font-bold text-slate-800 tracking-tight">
             Solo Travel Agent
           </span>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-[#2e3248] bg-[#1a1d27] p-8 text-center">
-          <h1 className="text-lg font-semibold text-slate-100 mb-1">Welcome back</h1>
-          <p className="text-sm text-slate-400 mb-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-lg">
+          <h1 className="text-lg font-bold text-slate-800 mb-1">Welcome back</h1>
+          <p className="text-sm text-slate-500 mb-8">
             Sign in to plan trips with Marco, your AI travel companion.
           </p>
 
           <a
             href={`${import.meta.env.VITE_API_URL ?? ''}/api/auth/google/login`}
             className="flex items-center justify-center gap-3 w-full rounded-xl
-              bg-white text-slate-800 font-medium text-sm px-4 py-3
-              hover:bg-slate-100 transition-colors"
+              bg-white text-slate-700 font-medium text-sm px-4 py-3
+              border border-slate-200 shadow-sm hover:bg-slate-50 hover:shadow-md transition-all"
           >
             {/* Google G mark */}
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -36,7 +38,7 @@ export default function Login() {
           </a>
         </div>
 
-        <p className="text-center text-xs text-slate-600 mt-6">
+        <p className="text-center text-xs text-slate-400 mt-6">
           Your trips are private and only visible to you.
         </p>
       </div>

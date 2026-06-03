@@ -16,11 +16,11 @@ function mapUrl(title, destination) {
 }
 
 const SLOT_COLORS = {
-  amber:  { dot: 'bg-amber-400',  label: 'text-amber-300',  border: 'border-amber-500/30',  bg: 'bg-amber-900/10'  },
-  sky:    { dot: 'bg-sky-400',    label: 'text-sky-300',    border: 'border-sky-500/30',    bg: 'bg-sky-900/10'    },
-  orange: { dot: 'bg-orange-400', label: 'text-orange-300', border: 'border-orange-500/30', bg: 'bg-orange-900/10' },
-  violet: { dot: 'bg-violet-400', label: 'text-violet-300', border: 'border-violet-500/30', bg: 'bg-violet-900/10' },
-  slate:  { dot: 'bg-slate-400',  label: 'text-slate-300',  border: 'border-slate-500/30',  bg: 'bg-slate-800/20'  },
+  amber:  { dot: 'bg-amber-400',  label: 'text-amber-700',  border: 'border-amber-200',  bg: 'bg-amber-50'  },
+  sky:    { dot: 'bg-sky-400',    label: 'text-sky-700',    border: 'border-sky-200',    bg: 'bg-sky-50'    },
+  orange: { dot: 'bg-orange-400', label: 'text-orange-700', border: 'border-orange-200', bg: 'bg-orange-50' },
+  violet: { dot: 'bg-violet-500', label: 'text-violet-700', border: 'border-violet-200', bg: 'bg-violet-50' },
+  slate:  { dot: 'bg-slate-400',  label: 'text-slate-600',  border: 'border-slate-200',  bg: 'bg-slate-50'  },
 }
 
 const SLOT_ICONS = {
@@ -35,7 +35,7 @@ function TimelineView({ timeline }) {
   return (
     <div className="mt-4 space-y-4">
       {timeline.intro && (
-        <div className="prose prose-sm max-w-none text-slate-400">
+        <div className="prose prose-sm max-w-none text-slate-600">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{timeline.intro}</ReactMarkdown>
         </div>
       )}
@@ -43,7 +43,7 @@ function TimelineView({ timeline }) {
       {/* Time slots */}
       <div className="relative">
         {/* Vertical connector line */}
-        <div className="absolute left-[11px] top-5 bottom-5 w-px bg-[#2e3248]" />
+        <div className="absolute left-[11px] top-5 bottom-5 w-px bg-slate-200" />
 
         <div className="space-y-3">
           {timeline.slots.map((slot, i) => {
@@ -52,7 +52,7 @@ function TimelineView({ timeline }) {
             return (
               <div key={i} className="relative flex gap-4">
                 {/* Dot */}
-                <div className={cn('shrink-0 w-6 h-6 rounded-full flex items-center justify-center z-10 mt-0.5', c.bg, 'border', c.border)}>
+                <div className={cn('shrink-0 w-6 h-6 rounded-full flex items-center justify-center z-10 mt-0.5 border', c.bg, c.border)}>
                   <span className="text-xs leading-none">{icon}</span>
                 </div>
 
@@ -62,9 +62,9 @@ function TimelineView({ timeline }) {
                     {slot.label}
                   </p>
                   {slot.content && (
-                    <div className="prose prose-sm max-w-none text-slate-300
+                    <div className="prose prose-sm max-w-none text-slate-700
                       [&_ul]:mt-1 [&_ul]:space-y-1 [&_li]:leading-snug
-                      [&_p]:mb-1 [&_strong]:text-slate-100">
+                      [&_p]:mb-1 [&_strong]:text-slate-800">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{slot.content}</ReactMarkdown>
                     </div>
                   )}
@@ -77,9 +77,9 @@ function TimelineView({ timeline }) {
 
       {/* Budget today */}
       {timeline.budget && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-700/30 bg-emerald-900/10">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50">
           <span className="text-sm">💰</span>
-          <p className="text-xs text-emerald-300">{timeline.budget}</p>
+          <p className="text-xs text-emerald-700 font-medium">{timeline.budget}</p>
         </div>
       )}
     </div>
@@ -93,16 +93,15 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
   const timeline = parseTimeline(day.content)
   const canTimeline = !!timeline
 
-  // If timeline isn't parseable, force text mode
   const effectiveMode = canTimeline ? viewMode : 'text'
 
   return (
     <div
       className={cn(
-        'rounded-xl border transition-colors',
+        'rounded-xl border transition-all duration-200',
         isToday
-          ? 'border-indigo-600/60 bg-indigo-950/30'
-          : 'border-[#2e3248] bg-[#1a1d27]',
+          ? 'border-indigo-300 border-l-4 border-l-indigo-500 bg-indigo-50 shadow-md'
+          : 'border-slate-200 bg-white shadow-sm hover:shadow-md',
       )}
     >
       {/* Header */}
@@ -114,13 +113,16 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
         <div className="flex items-center gap-3 min-w-0">
           <span className={cn(
             'shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold',
-            isToday ? 'bg-indigo-600 text-white' : 'bg-[#22263a] text-slate-400',
+            isToday ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600',
           )}>
             {day.num}
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-semibold text-slate-100 truncate">
+              <h3 className={cn(
+                'text-sm font-semibold truncate',
+                isToday ? 'text-indigo-900' : 'text-slate-800',
+              )}>
                 {day.title || `Day ${day.num}`}
               </h3>
               {isToday && <Badge variant="active">← today</Badge>}
@@ -135,7 +137,7 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-900/20 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
               title="View on map"
             >
               <MapPin size={14} />
@@ -143,14 +145,21 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
           )}
           <ChevronDown
             size={16}
-            className={`text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={cn(
+              'transition-transform',
+              isToday ? 'text-indigo-400' : 'text-slate-400',
+              open ? 'rotate-180' : '',
+            )}
           />
         </div>
       </button>
 
       {/* Content */}
       {open && (
-        <div className="px-5 pb-5 border-t border-[#2e3248]/60">
+        <div className={cn(
+          'px-5 pb-5 border-t',
+          isToday ? 'border-indigo-200' : 'border-slate-100',
+        )}>
           {/* View toggle — only shown when timeline is available */}
           {canTimeline && (
             <div className="flex gap-1 mt-3 mb-1">
@@ -160,8 +169,8 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer',
                   effectiveMode === 'timeline'
-                    ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-600/40'
-                    : 'text-slate-500 hover:text-slate-300 border border-transparent',
+                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                    : 'text-slate-500 hover:text-slate-700 border border-transparent hover:border-slate-200',
                 )}
               >
                 <Clock size={11} /> Timeline
@@ -172,8 +181,8 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer',
                   effectiveMode === 'text'
-                    ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-600/40'
-                    : 'text-slate-500 hover:text-slate-300 border border-transparent',
+                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                    : 'text-slate-500 hover:text-slate-700 border border-transparent hover:border-slate-200',
                 )}
               >
                 <AlignLeft size={11} /> Text
@@ -184,7 +193,7 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
           {effectiveMode === 'timeline' && timeline ? (
             <TimelineView timeline={timeline} />
           ) : (
-            <div className="prose prose-sm max-w-none mt-4 text-slate-300">
+            <div className="prose prose-sm max-w-none mt-4 text-slate-700">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{day.content}</ReactMarkdown>
             </div>
           )}

@@ -142,5 +142,6 @@ class ExtractResponse(BaseModel):
     country_code: str = ""
     start_date: str = ""
     end_date: str = ""
+    budget: float | None = None
     days: list[DayPlan] = Field(default_factory=list)
     budget_breakdown: BudgetBreakdown = Field(default_factory=BudgetBreakdown)

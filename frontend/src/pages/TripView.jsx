@@ -7,7 +7,7 @@ import {
   Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed, Map,
 } from 'lucide-react'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
-import { saveDebrief, patchTrip } from '@/lib/api'
+import { saveDebrief } from '@/lib/api'
 import { useTrip } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { useWeatherCache } from '@/hooks/useWeatherCache'
@@ -246,7 +246,7 @@ export default function TripView() {
       {/* Back */}
       <button
         onClick={() => navigate('/')}
-        className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-300 mb-6 cursor-pointer"
+        className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-6 cursor-pointer transition-colors"
       >
         <ArrowLeft size={14} /> All trips
       </button>
@@ -254,15 +254,15 @@ export default function TripView() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 mb-1">{tripData.destination}</h1>
-          <p className="text-slate-400 text-sm">{tripData.dates}</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">{tripData.destination}</h1>
+          <p className="text-slate-500 text-sm">{tripData.dates}</p>
           <div className="mt-2">
             <Badge variant={status}>{label}</Badge>
           </div>
         </div>
         <button
           onClick={handleDelete}
-          className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-colors cursor-pointer"
+          className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
           title="Delete trip"
         >
           <Trash2 size={16} />
@@ -334,8 +334,8 @@ export default function TripView() {
 
       {/* Export panel */}
       {showExport && (
-        <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] p-5 mb-6">
-          <h3 className="text-sm font-semibold text-slate-200 mb-3">📤 Export & Share</h3>
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 mb-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">📤 Export & Share</h3>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -407,30 +407,6 @@ export default function TripView() {
       {/* Daily briefing email */}
       {(status === 'upcoming' || status === 'active') && (
         <div className="mb-6 space-y-2">
-          {!tripData.email_config?.email && (
-            <button
-              type="button"
-              onClick={() => setEmailPanelOpen(true)}
-              className="w-full flex items-center justify-between gap-3 rounded-xl
-                border border-indigo-700/40 bg-indigo-900/20 px-4 py-3
-                text-left hover:bg-indigo-900/30 transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg">📧</span>
-                <div>
-                  <p className="text-sm font-medium text-indigo-200">
-                    Get Marco's daily briefing in your inbox
-                  </p>
-                  <p className="text-xs text-indigo-400 mt-0.5">
-                    Weather + today's plan + budget — every morning, automatically
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs text-indigo-400 group-hover:text-indigo-200 shrink-0 transition-colors">
-                Set up →
-              </span>
-            </button>
-          )}
           <EmailBriefingConfig
             tripId={id}
             emailConfig={tripData.email_config ?? {}}
@@ -443,15 +419,15 @@ export default function TripView() {
 
       {/* Rebuild Today — streaming output */}
       {rebuilding && (
-        <div className="rounded-xl border border-indigo-700/50 bg-indigo-950/30 p-5 mb-6">
-          <div className="flex items-center gap-2 text-sm text-indigo-300 mb-3">
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 mb-6">
+          <div className="flex items-center gap-2 text-sm text-indigo-700 mb-3">
             {toolStatus
               ? <><Spinner className="w-4 h-4" /> {toolStatus}</>
               : <><Spinner className="w-4 h-4" /> Rebuilding Day {dayNum} around today's weather…</>
             }
           </div>
           {rebuildText && (
-            <div className={`prose prose-sm max-w-none ${streaming ? 'streaming-cursor' : ''}`}>
+            <div className={`prose prose-sm max-w-none text-slate-700 ${streaming ? 'streaming-cursor' : ''}`}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{rebuildText}</ReactMarkdown>
             </div>
           )}
@@ -460,13 +436,13 @@ export default function TripView() {
 
       {/* Debrief — streaming output */}
       {debriefing && (
-        <div className="rounded-xl border border-violet-700/50 bg-violet-950/20 p-5 mb-6">
-          <div className="flex items-center gap-2 text-sm text-violet-300 mb-3">
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 mb-6">
+          <div className="flex items-center gap-2 text-sm text-violet-700 mb-3">
             <Spinner className="w-4 h-4" />
             {toolStatus ?? 'Marco is writing your debrief…'}
           </div>
           {debriefText && (
-            <div className="prose prose-sm max-w-none text-slate-200 streaming-cursor">
+            <div className="prose prose-sm max-w-none text-slate-700 streaming-cursor">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{debriefText}</ReactMarkdown>
             </div>
           )}
@@ -475,23 +451,23 @@ export default function TripView() {
 
       {/* Debrief — persisted display */}
       {!debriefing && tripData.debrief && (
-        <div className="rounded-xl border border-violet-700/40 bg-violet-950/20 p-5 mb-6">
-          <p className="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-3">
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 mb-6">
+          <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-3">
             📋 Post-Trip Debrief
           </p>
-          <div className="prose prose-sm max-w-none text-slate-300">
+          <div className="prose prose-sm max-w-none text-slate-700">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{tripData.debrief}</ReactMarkdown>
           </div>
           {tripData.preferences?.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-violet-700/30">
-              <p className="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-2">
+            <div className="mt-4 pt-4 border-t border-violet-200">
+              <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-2">
                 Your travel preferences
               </p>
               <div className="flex flex-wrap gap-2">
                 {tripData.preferences.map((pref, i) => (
                   <span
                     key={i}
-                    className="px-2.5 py-1 rounded-full text-xs border border-violet-600/40 bg-violet-900/20 text-violet-200"
+                    className="px-2.5 py-1 rounded-full text-xs border border-violet-200 bg-white text-violet-700 shadow-sm"
                   >
                     {pref}
                   </span>
@@ -504,8 +480,8 @@ export default function TripView() {
 
       {/* Near Me — streaming + persisted */}
       {!nearMeDismissed && (nearMeActive || nearMeText || tripData.near_me_response) && (
-        <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/20 p-5 mb-6">
-          <div className="flex items-center justify-between gap-2 text-sm text-emerald-300 mb-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 mb-6">
+          <div className="flex items-center justify-between gap-2 text-sm text-emerald-700 mb-3">
             <div className="flex items-center gap-2">
               {nearMeActive
                 ? <><Spinner className="w-4 h-4" /> {locating ? 'Getting your location…' : (toolStatus ?? "Finding what's near you…")}</>
@@ -518,14 +494,14 @@ export default function TripView() {
                   type="button"
                   onClick={() => handleNearMe(true)}
                   disabled={streaming}
-                  className="text-xs text-emerald-600 hover:text-emerald-400 transition-colors cursor-pointer"
+                  className="text-xs text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
                 >
                   <RefreshCw size={12} className="inline mr-1" />refresh
                 </button>
                 <button
                   type="button"
                   onClick={() => setNearMeDismissed(true)}
-                  className="text-xs text-emerald-600 hover:text-emerald-400 transition-colors cursor-pointer"
+                  className="text-xs text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
                 >
                   dismiss
                 </button>
@@ -533,7 +509,7 @@ export default function TripView() {
             )}
           </div>
           {(nearMeText || tripData.near_me_response) && (
-            <div className={`prose prose-sm max-w-none text-slate-200 ${nearMeActive ? 'streaming-cursor' : ''}`}>
+            <div className={`prose prose-sm max-w-none text-slate-700 ${nearMeActive ? 'streaming-cursor' : ''}`}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{nearMeText || tripData.near_me_response}</ReactMarkdown>
             </div>
           )}
@@ -566,9 +542,9 @@ export default function TripView() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-[#2e3248] p-8 mb-8 text-center">
-          <p className="text-slate-400 text-sm">No itinerary yet.</p>
-          <p className="text-slate-500 text-xs mt-1">Use "Continue Planning" above to finish building your trip.</p>
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 mb-8 text-center shadow-sm">
+          <p className="text-slate-600 text-sm font-medium">No itinerary yet.</p>
+          <p className="text-slate-400 text-xs mt-1">Use "Continue Planning" above to finish building your trip.</p>
         </div>
       )}
 
@@ -603,8 +579,8 @@ export default function TripView() {
         ]
 
         return (
-          <div className="rounded-xl border border-[#2e3248] bg-[#1a1d27] p-4 mb-6">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Book Your Trip</p>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 mb-6">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Book Your Trip</p>
             <div className="flex flex-wrap gap-2">
               {links.map(({ label, url }) => (
                 <a
@@ -613,8 +589,8 @@ export default function TripView() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
-                    bg-[#22263a] border border-[#2e3248] text-slate-300
-                    hover:border-indigo-500/60 hover:text-indigo-300 transition-colors"
+                    bg-slate-50 border border-slate-200 text-slate-600
+                    hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shadow-sm"
                 >
                   {label} <ExternalLink size={12} className="opacity-60" />
                 </a>

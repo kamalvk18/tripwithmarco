@@ -93,9 +93,9 @@ export function AutocompleteInput({
         required={required}
         autoComplete="off"
         className={cn(
-          `w-full rounded-lg bg-[#22263a] border border-[#2e3248] text-slate-200
-           px-3 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500
-           transition-colors`,
+          `w-full rounded-lg bg-white border border-slate-200 text-slate-800
+           px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400
+           focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm`,
           className,
         )}
         {...inputProps}
@@ -112,8 +112,8 @@ export function AutocompleteInput({
       {isOpen && (
         <ul
           role="listbox"
-          className="absolute z-50 top-full mt-1 w-full rounded-lg border border-[#2e3248]
-            bg-[#1a1d27] shadow-xl shadow-black/50 overflow-hidden text-sm"
+          className="absolute z-50 top-full mt-1 w-full rounded-lg border border-slate-200
+            bg-white shadow-lg overflow-hidden text-sm"
         >
           {suggestions.map((s, i) => (
             <li
@@ -125,11 +125,11 @@ export function AutocompleteInput({
               className={cn(
                 'flex items-center gap-2.5 px-3 py-2.5 cursor-pointer select-none transition-colors',
                 i === activeIdx
-                  ? 'bg-indigo-900/50 text-slate-100'
-                  : 'text-slate-300 hover:bg-white/[.04]',
+                  ? 'bg-indigo-50 text-indigo-800'
+                  : 'text-slate-700 hover:bg-slate-50',
               )}
             >
-              <MapPin size={13} className="text-indigo-400 shrink-0" />
+              <MapPin size={13} className="text-indigo-500 shrink-0" />
               <span className="truncate">{s.label}</span>
             </li>
           ))}

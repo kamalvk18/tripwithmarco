@@ -49,6 +49,7 @@ Return ONLY a JSON object with these exact fields:
 - country_code: 2-letter ISO code (e.g. "PL", "AT", "ES")
 - start_date: YYYY-MM-DD format, or "" if not mentioned
 - end_date: YYYY-MM-DD format, or "" if not mentioned
+- budget: the user's most recently stated budget as a plain number (e.g. 35000), or null if not mentioned. Use the LATEST value if the user updated it.
 
 No markdown, no explanation. JSON object only.""",
             messages=[
@@ -95,8 +96,9 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
                             "title": {
                                 "type": "string",
                                 "description": (
-                                    "Full day heading exactly as written, e.g. "
-                                    "'Day 1 (May 28) — ARRIVAL & GENTLE START'."
+                                    "Descriptive title only — strip the 'Day N', 'Day N:', "
+                                    "or 'Day N — ' prefix and any leading date. "
+                                    "e.g. from '## Day 1 — Arrival & Gentle Start' extract 'Arrival & Gentle Start'."
                                 ),
                             },
                             "content": {
@@ -159,7 +161,8 @@ def extract_itinerary(messages: list) -> str:
     mentions "day 1".  This prevents later conversational replies that
     casually reference "Day 1" from shadowing the actual itinerary.
     """
-    heading_re = re.compile(r'(?i)(?:^|\n)[ \t]*(?:#{1,3}[ \t]*)?\*{0,2}day[ \t]+\d+')
+    # Allow optional non-word chars (emojis, icons) between ### and Day N
+    heading_re = re.compile(r'(?i)(?:^|\n)[ \t]*(?:#{1,3}[ \t]*[^\w\n]*[ \t]*)?\*{0,2}day[ \t]+\d+')
 
     def _is_real_itinerary(content: str) -> bool:
         return len(heading_re.findall(content)) >= 2

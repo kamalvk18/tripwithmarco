@@ -42,6 +42,9 @@ uv add --dev <package>
 ### Companion Mode Context Injection
 When `companion_mode=True`, `chat()` pre-fetches live weather and injects today's itinerary section directly into the system prompt (not as a user message). This gives Marco context without requiring tool calls at runtime. See `planning_agent.py:chat()`.
 
+### Destination Input
+The destination and origin fields in the trip form are plain text inputs — no autocomplete. `destinationCountryCode` is no longer populated by the form; the backend derives it via `extract_trip_details()` (Haiku extraction from the conversation text).
+
 ### Persistence
 Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db` on Fly.io). Each row holds indexed summary columns plus a full JSON blob of the trip. The `messages` array inside the blob is the full conversation history — the trip record IS the conversation. `trip_store.py` is the only entry point; no other module touches the DB directly. To swap to Postgres, set `DATABASE_URL=postgresql://...`.
 
@@ -59,13 +62,13 @@ Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db`
 | `backend/agents/tools.py` | JSON schema definitions for all 4 tools |
 | `backend/tools/flights.py` | SerpApi Google Flights query + parse + format |
 | `backend/tools/hotels.py` | SerpApi Google Hotels query + parse + format |
-| `backend/tools/places.py` | SerpApi Google Local query + parse + format |
+| `backend/tools/places.py` | SerpApi Google Local query + parse + format; auto-retries with broader location fallbacks on unsupported-location errors |
 | `backend/tools/weather.py` | OpenWeather geo + forecast query + format |
 | `backend/tools/cache.py` | Disk cache for external API calls (TTL-based) |
 | `backend/db/database.py` | SQLAlchemy engine, session factory, `init_db()` |
 | `backend/db/models.py` | `Trip` SQLAlchemy model |
 | `backend/db/trip_store.py` | save/load/list/update/delete + JSON migration |
-| `backend/prompts/marco.md` | Marco's system prompt — personality, modes, tool usage rules |
+| `backend/prompts/marco.md` | Marco's system prompt — personality, modes, tool usage rules (including: do not retry failed tool calls) |
 | `backend/api/app.py` | FastAPI app factory, auth middleware, CORS, route registration |
 | `backend/api/schemas.py` | Pydantic request/response models |
 | `backend/api/routes/trips.py` | Trip CRUD endpoints |
@@ -125,6 +128,8 @@ Optional:
 - `ALLOWED_ORIGINS` — comma-separated extra CORS origins (e.g. your Vercel URL)
 - `CRON_SECRET` — protects the `/api/send-briefings` cron endpoint
 - `RESEND_API_KEY` / `RESEND_FROM` — email briefing delivery
+- `DAILY_TRIP_LIMIT` — max trips a user can create per UTC day (default: `2`)
+- `DAILY_CHAT_LIMIT` — max chat/Ask-Marco requests a user can send per UTC day (default: `20`)
 
 ## Itinerary Parsing
 

@@ -92,10 +92,10 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
             return f"Unknown tool: {tool_name}"
 
     except KeyError as e:
-        error = f"Tool '{tool_name}' called with missing required input: {e}"
-        print(f"⚠️  {error}")
-        return error
+        print(f"⚠️  Tool '{tool_name}' missing required input: {e}")
+        return f"Tool '{tool_name}' was called with a missing required field. Do not retry."
     except Exception as e:
-        error = f"Tool '{tool_name}' encountered an unexpected error: {e}"
-        print(f"⚠️  {error}")
-        return error
+        # Log the real error server-side; never return raw exception strings to Claude
+        # — HTTP library errors can include API keys embedded in URL query params.
+        print(f"⚠️  Tool '{tool_name}' error: {e}")
+        return f"Tool '{tool_name}' failed to fetch data. Do not retry this search."

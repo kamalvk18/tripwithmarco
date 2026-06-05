@@ -17,9 +17,10 @@ PATCH  /trips/{trip_id}/checklist/{id} → toggle completed
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Body
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from pydantic import BaseModel, Field
 from backend.auth.deps import get_current_user
+from backend.api.rate_limit import check_trip_limit, check_claude_limit
 from backend.db.trip_store import list_trips, load_trip, save_trip, update_trip, delete_trip
 from backend.api.schemas import (
     TripSummary,
@@ -55,7 +56,7 @@ def get_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
 
 
 @router.post("", response_model=TripIdResponse, status_code=201)
-def create_trip(body: SaveTripRequest, current_user: dict = Depends(get_current_user)):
+def create_trip(body: SaveTripRequest, current_user: dict = Depends(check_trip_limit)):
     trip_id = save_trip(body.trip_data, current_user["id"])
     return TripIdResponse(trip_id=trip_id)
 
@@ -110,7 +111,7 @@ def remove_expense(trip_id: str, expense_id: str, current_user: dict = Depends(g
 # ── Checklist ─────────────────────────────────────────────────────────────────
 
 @router.post("/{trip_id}/checklist", response_model=ChecklistResponse)
-def generate_checklist(trip_id: str, passport_country: str = "", current_user: dict = Depends(get_current_user)):
+def generate_checklist(trip_id: str, passport_country: str = Query("", max_length=100, pattern=r"^[a-zA-Z ,\-]*$"), current_user: dict = Depends(check_claude_limit)):
     from backend.agents.planning_agent import generate_checklist as _gen
     trip = _get_or_404(trip_id, current_user["id"])
     items_raw = _gen(trip.get("destination", ""), passport_country, trip.get("start_date", ""))
@@ -139,8 +140,16 @@ def toggle_checklist_item(trip_id: str, item_id: str, completed: bool = False, c
 
 # ── Partial field patch ───────────────────────────────────────────────────────
 
+_PATCHABLE_FIELDS = {
+    "day_overrides", "currency", "notes", "near_me_response",
+    "email_config", "spending", "checklist",
+}
+
 @router.patch("/{trip_id}", response_model=OkResponse)
 def patch_trip_fields(trip_id: str, updates: dict = Body(...), current_user: dict = Depends(get_current_user)):
+    disallowed = set(updates.keys()) - _PATCHABLE_FIELDS
+    if disallowed:
+        raise HTTPException(status_code=422, detail=f"Fields not patchable: {sorted(disallowed)}")
     trip = _get_or_404(trip_id, current_user["id"])
     trip.update(updates)
     update_trip(trip_id, trip, current_user["id"])
@@ -150,11 +159,11 @@ def patch_trip_fields(trip_id: str, updates: dict = Body(...), current_user: dic
 # ── Post-trip debrief ─────────────────────────────────────────────────────────
 
 class DebriefRequest(BaseModel):
-    debrief_text: str
+    debrief_text: str = Field(..., max_length=5000)
 
 
 @router.post("/{trip_id}/debrief", response_model=OkResponse)
-def save_debrief(trip_id: str, body: DebriefRequest, current_user: dict = Depends(get_current_user)):
+def save_debrief(trip_id: str, body: DebriefRequest, current_user: dict = Depends(check_claude_limit)):
     from backend.agents.planning_agent import extract_preferences
     trip = _get_or_404(trip_id, current_user["id"])
     preferences = extract_preferences(body.debrief_text)

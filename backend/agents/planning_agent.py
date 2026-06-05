@@ -30,6 +30,18 @@ def load_prompt(filename: str) -> str:
 
 SYSTEM_PROMPT = load_prompt("marco.md")
 
+_INJECT_RE = re.compile(r"(##\s|ignore\s|system\s*prompt|<\s*/?system|instruction)", re.IGNORECASE)
+
+def _safe_str(value: str, max_len: int = 200) -> str:
+    """Sanitize a client-supplied string before injecting it into the system prompt.
+    Strips leading/trailing whitespace, truncates, and rejects values that look
+    like prompt-injection attempts (returns empty string in that case).
+    """
+    s = str(value).strip()[:max_len]
+    if _INJECT_RE.search(s):
+        return ""
+    return s
+
 
 def extract_trip_details(messages: list) -> dict:
     """Use Claude Haiku to extract structured trip details from conversation."""
@@ -365,25 +377,29 @@ def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, o
             itinerary = extract_itinerary(trip_data.get("messages", []))
             today_plan = extract_day_section(itinerary, day_number)
 
-            # Use pre-fetched weather injected by the frontend (cached, 1-hour TTL).
-            # Fall back to a live fetch only when the frontend didn't supply it
-            # (e.g. old Streamlit client, direct API calls, tests).
+            # Always fetch weather server-side — never trust client-supplied weather_text
+            # since it lands verbatim in the system prompt (prompt-injection vector).
+            # Results are disk-cached (1-hour TTL) so this is not an extra API call.
             city = trip_data.get("city") or trip_data.get("destination", "")
             country_code = trip_data.get("country_code", "")
-            weather_text = trip_data.get("weather_text", "")
-            if not weather_text and city:
+            weather_text = ""
+            if city:
                 try:
                     weather_data = get_weather_forecast(city, country_code)
                     weather_text = format_weather_for_marco(weather_data)
                 except Exception:
                     pass
 
+            destination = _safe_str(trip_data.get("destination", ""))
+            start_date  = _safe_str(trip_data.get("start_date",  ""))
+            end_date    = _safe_str(trip_data.get("end_date",    ""))
+
             dynamic_context += f"""
 
 ## COMPANION MODE — ACTIVE TRIP
 The user is CURRENTLY ON THIS TRIP. Today is Day {day_number} of {total_days}.
-- Destination: {trip_data.get('destination')}
-- Trip dates: {trip_data.get('start_date')} to {trip_data.get('end_date')}
+- Destination: {destination}
+- Trip dates: {start_date} to {end_date}
 
 Switch fully into companion mode: short, punchy, actionable. They're on their phone.
 Lead with weather impact — what does today's forecast mean for the plan?

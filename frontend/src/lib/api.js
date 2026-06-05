@@ -62,7 +62,11 @@ export async function saveTrip(tripData) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ trip_data: tripData }),
   })
-  if (!res.ok) throw new Error('Failed to save trip')
+  if (!res.ok) {
+    let message = 'Failed to save trip'
+    try { const body = await res.json(); if (body.detail) message = body.detail } catch {}
+    throw new Error(message)
+  }
   const data = await res.json()
   return data.trip_id
 }
@@ -113,7 +117,11 @@ export async function chatStream({
     window.location.href = '/login'
     throw new Error('Session expired')
   }
-  if (!res.ok) throw new Error(`API error ${res.status}`)
+  if (!res.ok) {
+    let message = `API error ${res.status}`
+    try { const body = await res.json(); if (body.detail) message = body.detail } catch {}
+    throw new Error(message)
+  }
 
   const reader  = res.body.getReader()
   const decoder = new TextDecoder()

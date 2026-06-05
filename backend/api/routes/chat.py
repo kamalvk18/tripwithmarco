@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 from backend.auth.deps import get_current_user
+from backend.api.rate_limit import check_chat_limit, check_claude_limit
 
 from backend.agents.planning_agent import (
     chat,
@@ -83,7 +84,7 @@ async def _sse_stream(messages: list, trip_data: dict | None, companion_mode: bo
 
 
 @router.post("/stream")
-async def stream_chat(req: ChatRequest, _: dict = Depends(get_current_user)):
+async def stream_chat(req: ChatRequest, _: dict = Depends(check_chat_limit)):
     """
     Stream Marco's response as Server-Sent Events.
 
@@ -111,7 +112,7 @@ async def stream_chat(req: ChatRequest, _: dict = Depends(get_current_user)):
 
 
 @router.post("")
-async def chat_sync(req: ChatRequest, _: dict = Depends(get_current_user)):
+async def chat_sync(req: ChatRequest, _: dict = Depends(check_chat_limit)):
     """
     Non-streaming chat — collects the full response and returns it as JSON.
     Useful for testing or clients that don't support SSE.
@@ -126,14 +127,10 @@ async def chat_sync(req: ChatRequest, _: dict = Depends(get_current_user)):
 
 
 @router.get("/weather")
-async def get_weather(city: str, country_code: str = ""):
+async def get_weather(city: str, country_code: str = "", _: dict = Depends(get_current_user)):
     """
     Fetch and format a 5-day weather forecast for a given city.
-
-    Used by the React frontend to pre-fetch weather once and cache it
-    client-side (1-hour TTL), so companion-mode chat calls don't each
-    trigger a fresh OpenWeather request.
-
+    Requires authentication — weather API quota must not be open to the public.
     Returns: { "weather_text": "<formatted string for Marco>" }
     """
     try:
@@ -141,11 +138,12 @@ async def get_weather(city: str, country_code: str = ""):
         text = format_weather_for_marco(data)
         return {"weather_text": text}
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Weather fetch failed: {exc}")
+        print(f"Weather fetch error for city='{city}': {exc}")
+        raise HTTPException(status_code=502, detail="Weather service temporarily unavailable")
 
 
 @router.post("/extract", response_model=ExtractResponse)
-async def extract_info(req: ExtractRequest, _: dict = Depends(get_current_user)):
+async def extract_info(req: ExtractRequest, _: dict = Depends(check_claude_limit)):
     """
     Run post-generation extraction on a completed conversation.
 

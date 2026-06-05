@@ -51,6 +51,8 @@ Calls SerpApi `google_hotels` engine. Returns name, price/night, total price, ra
 ### places.py
 Calls SerpApi `google_local` engine with a freeform `query` (e.g., "street food near old town"). Returns name, rating, hours, address, price level.
 
+When SerpApi rejects a location as unsupported (e.g. very remote or sub-region strings like "Hanle, Ladakh, India"), `search_places()` automatically retries with progressively broader fallbacks ("Ladakh, India", then "India") before giving up — all within a single tool call. If all fallbacks fail, `format_places_for_marco()` returns an explicit "do not retry" message so Claude doesn't loop on failed searches.
+
 ### weather.py
 Two-step: geocode city via OpenWeather Geo API, then fetch 5-day/3-hour forecast. Aggregates 8 readings/day into daily summaries. Dominant condition is chosen by frequency. Returns `{date, condition, avg_temp, min_temp, max_temp, rain}` per day.
 

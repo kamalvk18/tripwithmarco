@@ -2,21 +2,28 @@
 Pydantic request/response models for the Solo Travel Agent API.
 """
 
-from typing import Any
-from pydantic import BaseModel, Field
+from typing import Any, Literal
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Shared types ──────────────────────────────────────────────────────────────
 
 class Message(BaseModel):
-    role: str           # "user" | "assistant"
-    content: Any        # str for simple text, list for tool content blocks
+    role: Literal["user", "assistant"]
+    content: str | list[Any] = Field(..., )
+
+    @field_validator("content")
+    @classmethod
+    def _cap_content(cls, v: Any) -> Any:
+        if isinstance(v, str) and len(v) > 32_000:
+            raise ValueError("Message content exceeds 32,000 character limit")
+        return v
 
 
 # ── Chat ─────────────────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
-    messages: list[Message]
+    messages: list[Message] = Field(..., max_length=100)
     trip_data: dict[str, Any] | None = None
     companion_mode: bool = False
 
@@ -131,8 +138,8 @@ class BudgetBreakdown(BaseModel):
 
 class ExtractRequest(BaseModel):
     """Body for POST /chat/extract — runs post-generation Haiku extraction."""
-    messages: list[Message]
-    currency: str = "EUR"
+    messages: list[Message] = Field(..., max_length=100)
+    currency: str = Field("EUR", max_length=3, pattern=r"^[A-Z]{3}$")
 
 
 class ExtractResponse(BaseModel):

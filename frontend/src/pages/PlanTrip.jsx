@@ -7,7 +7,6 @@ import { toolLabel } from '@/lib/utils'
 import { extractInfo, listTrips, saveTrip, updateTrip } from '@/lib/api'
 import { invalidateTripCache } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
-import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -112,6 +111,7 @@ export default function PlanTrip() {
   const [stepHistory, setStepHistory]     = useState([])
   const [writingItinerary, setWritingItinerary] = useState(false)
   const [planningFailed, setPlanningFailed]     = useState(false)
+  const [chatError, setChatError]               = useState(null)
   const responseRef      = useRef('')
   const draftIdRef       = useRef(resume?.tripId ?? null)
   const draftMetaRef     = useRef(resume?.meta   ?? null)
@@ -217,6 +217,7 @@ export default function PlanTrip() {
       setWritingItinerary(false)
       setPlanningFailed(false)
     }
+    setChatError(null)
 
     await send({
       messages: withUser,
@@ -278,6 +279,7 @@ export default function PlanTrip() {
             .catch(err => console.warn('Draft auto-update failed:', err))
         }
       },
+      onError: msg => setChatError(msg),
     })
   }
 
@@ -357,21 +359,19 @@ export default function PlanTrip() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Destination *</Label>
-              <AutocompleteInput
+              <Input
                 placeholder="e.g. Tokyo, Japan"
                 value={form.destination}
-                onChange={val => setForm(f => ({ ...f, destination: val, destinationCountryCode: '' }))}
-                onSelect={s => setForm(f => ({ ...f, destination: s.name, destinationCountryCode: s.countryCode }))}
+                onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
                 required
               />
             </div>
             <div>
               <Label>Flying from *</Label>
-              <AutocompleteInput
+              <Input
                 placeholder="e.g. London"
                 value={form.origin}
-                onChange={val => setField('origin', val)}
-                onSelect={s => setField('origin', s.name)}
+                onChange={e => setField('origin', e.target.value)}
                 required
               />
             </div>
@@ -525,6 +525,14 @@ export default function PlanTrip() {
             </p>
           </div>
         </div>
+
+        {/* Rate limit / error banner */}
+        {chatError && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-2">
+            <span>{chatError}</span>
+            <button type="button" onClick={() => setChatError(null)} className="text-red-400 hover:text-red-600 shrink-0 text-base leading-none">✕</button>
+          </div>
+        )}
 
         {/* Tool-step loader */}
         {showLoader && (

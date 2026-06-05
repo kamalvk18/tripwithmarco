@@ -62,6 +62,7 @@ export default function TripView() {
   const [debriefText, setDebriefText]     = useState('')
   const [showExport, setShowExport]       = useState(false)
   const [emailPanelOpen, setEmailPanelOpen] = useState(false)
+  const [chatError, setChatError]         = useState(null)
   const rebuildRef  = useRef('')
   const nearMeRef   = useRef('')
   const debriefRef  = useRef('')
@@ -119,6 +120,7 @@ export default function TripView() {
         setRebuilding(false)
         setRebuildText('')
       },
+      onError: msg => { setRebuilding(false); setChatError(msg) },
     })
   }
 
@@ -155,6 +157,7 @@ export default function TripView() {
         setNearMeActive(false)
         updateNearMe(nearMeRef.current)
       },
+      onError: msg => { setNearMeActive(false); setChatError(msg) },
     })
   }
 
@@ -182,6 +185,7 @@ export default function TripView() {
           updateDebrief(debriefRef.current)
         } catch { /* non-critical — debrief text is still shown */ }
       },
+      onError: msg => { setDebriefing(false); setChatError(msg) },
     })
   }
 
@@ -599,6 +603,14 @@ export default function TripView() {
           </div>
         )
       })()}
+
+      {/* Rate limit / error banner */}
+      {chatError && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-2">
+          <span>{chatError}</span>
+          <button type="button" onClick={() => setChatError(null)} className="text-red-400 hover:text-red-600 shrink-0 text-base leading-none">✕</button>
+        </div>
+      )}
 
       {/* Companion / Chat panel */}
       {showCompanion && status === 'active' ? (

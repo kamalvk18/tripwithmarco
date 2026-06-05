@@ -52,6 +52,7 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
   const [input, setInput]                 = useState('')
   const [streamingText, setStreamingText] = useState('')
   const [quickReplies, setQuickReplies]   = useState([])
+  const [chatError, setChatError]         = useState(null)
   const bottomRef       = useRef(null)
   const inputRef        = useRef(null)
   const scrollRef       = useRef(null)
@@ -93,6 +94,7 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
     if (!text || streaming) return
     setInput('')
     setQuickReplies([])
+    setChatError(null)
     shouldScrollRef.current = true
 
     const userMsg = { role: 'user', content: text }
@@ -118,6 +120,7 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
         setQuickReplies(extractOptions(responseText))
         onSave?.([...allMessages, assistantMsg])
       },
+      onError: msg => setChatError(msg),
     })
   }
 
@@ -220,6 +223,14 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
 
             <div ref={bottomRef} />
           </div>
+
+          {/* Rate limit / error banner */}
+          {chatError && (
+            <div className="mx-4 mb-2 mt-1 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700 flex items-center justify-between gap-2">
+              <span>{chatError}</span>
+              <button type="button" onClick={() => setChatError(null)} className="text-red-400 hover:text-red-600 shrink-0 text-base leading-none">✕</button>
+            </div>
+          )}
 
           {/* Input */}
           <div className="border-t border-slate-100 px-4 py-3">

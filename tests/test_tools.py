@@ -216,7 +216,7 @@ class TestParsePlaces:
 class TestFormatPlacesForMarco:
     def test_format_empty_returns_no_results_message(self):
         text = format_places_for_marco([], "restaurants", "Krakow")
-        assert "No results" in text
+        assert "No places data available" in text
 
     def test_format_includes_place_name(self):
         places = parse_places(SAMPLE_RAW_PLACES)

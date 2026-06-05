@@ -2,9 +2,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError  # noqa: F401 — re-exported for callers
 
-SECRET    = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+_raw_secret = os.getenv("JWT_SECRET", "")
+if not _raw_secret:
+    raise RuntimeError("JWT_SECRET environment variable must be set before starting the server")
+SECRET    = _raw_secret
 ALGORITHM = "HS256"
-EXPIRES_DAYS = 30
+EXPIRES_DAYS = 7
 
 
 def create_token(user_id: int, email: str, name: str, picture: str = "") -> str:

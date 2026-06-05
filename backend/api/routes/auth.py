@@ -125,7 +125,9 @@ async def google_callback(code: str, state: str, request: Request):
         user_id = user.id
 
     jwt = create_token(user_id, email, name, picture)
-    return RedirectResponse(f"{FRONTEND_URL}/auth/callback?token={jwt}")
+    # Fragment (#) never reaches the server or appears in access logs, preventing
+    # the JWT from leaking into Render/Nginx logs or browser history via query params.
+    return RedirectResponse(f"{FRONTEND_URL}/auth/callback#{jwt}")
 
 
 @router.get("/me")

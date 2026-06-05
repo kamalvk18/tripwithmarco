@@ -5,6 +5,14 @@ from serpapi import GoogleSearch
 load_dotenv()
 
 
+def _location_fallbacks(location: str) -> list[str]:
+    """Return progressively broader versions of a location string.
+    'Hanle, Ladakh, India' → ['Hanle, Ladakh, India', 'Ladakh, India', 'India']
+    """
+    parts = [p.strip() for p in location.split(",")]
+    return [", ".join(parts[i:]) for i in range(len(parts))]
+
+
 def search_places(
     query: str,
     location: str,
@@ -12,34 +20,44 @@ def search_places(
 ) -> list[dict]:
     """
     Search for restaurants, attractions, or activities using SerpApi Google Local.
-    query: what to find (e.g. "traditional restaurants", "museums", "things to do")
-    location: city or area (e.g. "Kraków, Poland")
+    Retries with progressively broader locations on unsupported-location errors
+    so a single Claude tool call doesn't fail silently on remote/obscure places.
     """
     api_key = os.getenv("SERPAPI_KEY")
     if not api_key:
         print("SERPAPI_KEY is not set — places search skipped")
         return []
 
-    params = {
-        "engine": "google_local",
-        "q": query,
-        "location": location,
-        "api_key": api_key,
-    }
+    for candidate in _location_fallbacks(location):
+        if candidate != location:
+            print(f"Places: '{location}' unsupported, retrying with '{candidate}'")
 
-    try:
-        search = GoogleSearch(params)
-        results = search.get_dict()
+        params = {
+            "engine": "google_local",
+            "q": query,
+            "location": candidate,
+            "api_key": api_key,
+        }
 
-        if "error" in results:
-            print(f"SerpApi places error: {results['error']}")
+        try:
+            search = GoogleSearch(params)
+            results = search.get_dict()
+
+            if "error" in results:
+                error_msg = results["error"]
+                if "unsupported" in error_msg.lower():
+                    continue  # try next broader location without surfacing error
+                print(f"SerpApi places error: {error_msg}")
+                return []
+
+            places = results.get("local_results", [])
+            return parse_places(places[:max_results])
+        except Exception as e:
+            print(f"Places search error for '{candidate}': {e}")
             return []
 
-        places = results.get("local_results", [])
-        return parse_places(places[:max_results])
-    except Exception as e:
-        print(f"Places search error: {e}")
-        return []
+    print(f"Places: exhausted location fallbacks for '{location}'")
+    return []
 
 
 def parse_places(raw_places: list) -> list[dict]:
@@ -67,7 +85,11 @@ def format_places_for_marco(
     location: str
 ) -> str:
     if not places:
-        return f"No results for '{query}' in {location}."
+        return (
+            f"No places data available for '{query}' near {location}. "
+            "The location may be too remote or unrecognised by the search service. "
+            "Do not retry this search — proceed with your itinerary using general knowledge for this area."
+        )
 
     lines = [f"Results for '{query}' in {location}:"]
 

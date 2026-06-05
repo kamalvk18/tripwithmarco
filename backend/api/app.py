@@ -134,8 +134,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ── API routes ────────────────────────────────────────────────────────────────
@@ -156,13 +156,14 @@ def send_briefings(request: Request):
     Trigger daily email briefings for all active trips.
 
     Called by an external cron service once per day.
-    Protected by CRON_SECRET env var — pass it as X-Cron-Secret header.
+    Always protected by CRON_SECRET — the endpoint is closed if the env var is not set.
     """
     cron_secret = os.getenv("CRON_SECRET", "")
-    if cron_secret:
-        provided = request.headers.get("X-Cron-Secret", "")
-        if not secrets.compare_digest(provided.encode(), cron_secret.encode()):
-            raise HTTPException(status_code=403, detail="Invalid or missing X-Cron-Secret")
+    if not cron_secret:
+        raise HTTPException(status_code=403, detail="Cron endpoint is disabled (CRON_SECRET not configured)")
+    provided = request.headers.get("X-Cron-Secret", "")
+    if not secrets.compare_digest(provided.encode(), cron_secret.encode()):
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Cron-Secret")
 
     from backend.email.briefing import send_all_active_briefings
     sent = send_all_active_briefings()

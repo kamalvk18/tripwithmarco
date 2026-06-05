@@ -43,7 +43,7 @@ export default function Home() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Hero */}
       <div className="mb-10">
         <div className="flex items-center gap-3 mb-4">
@@ -121,7 +121,7 @@ export default function Home() {
                   <button
                     onClick={(e) => handleDelete(e, trip.trip_id)}
                     disabled={deleting === trip.trip_id}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg
                       text-slate-400 hover:text-red-500 hover:bg-red-50 cursor-pointer"
                     title="Delete trip"
                   >

@@ -344,7 +344,7 @@ export default function PlanTrip() {
   // ── Render: form (before first send) ───────────────────────────────────────
   if (!started) {
     return (
-      <div className="max-w-2xl mx-auto px-6 py-10">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
             <Plane className="text-white" size={20} />
@@ -356,7 +356,7 @@ export default function PlanTrip() {
         </div>
 
         <form onSubmit={handleFormSubmit} className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Destination *</Label>
               <Input
@@ -377,7 +377,7 @@ export default function PlanTrip() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Start date *</Label>
               <Input
@@ -511,7 +511,7 @@ export default function PlanTrip() {
     const showClarify = planningFailed && !streaming && !saving
 
     return (
-      <div className="max-w-lg mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
+      <div className="max-w-lg mx-auto px-4 sm:px-6 py-8 sm:py-10 flex flex-col min-h-[calc(100vh-4rem)]">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
@@ -635,7 +635,7 @@ export default function PlanTrip() {
 
   // ── Render: chat (resume mode only) ────────────────────────────────────────
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col min-h-[calc(100vh-4rem)]">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">

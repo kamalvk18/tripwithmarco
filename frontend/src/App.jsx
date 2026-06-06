@@ -7,6 +7,7 @@ import PlanTrip from '@/pages/PlanTrip'
 import TripView from '@/pages/TripView'
 import Login from '@/pages/Login'
 import AuthCallback from '@/pages/AuthCallback'
+import AdminDashboard from '@/pages/AdminDashboard'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
                   <Route index           element={<Home />} />
                   <Route path="plan"     element={<PlanTrip />} />
                   <Route path="trips/:id" element={<TripView />} />
+                  <Route path="admin"    element={<AdminDashboard />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

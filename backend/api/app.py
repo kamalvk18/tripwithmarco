@@ -30,19 +30,21 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# load_dotenv must run before any backend imports — jwt_utils checks JWT_SECRET at import time
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from dotenv import load_dotenv
 
 from backend.api.routes.trips import router as trips_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.auth import router as auth_router
-
-load_dotenv()
+from backend.api.routes.admin import router as admin_router
 
 _DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
@@ -142,6 +144,7 @@ app.add_middleware(
 app.include_router(auth_router,  prefix="/api")
 app.include_router(trips_router, prefix="/api")
 app.include_router(chat_router,  prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 
 @app.get("/health", tags=["meta"])

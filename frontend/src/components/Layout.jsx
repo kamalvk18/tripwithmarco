@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { PlusCircle, Map, Globe, ChevronRight, LogOut, Menu, X } from 'lucide-react'
+import { PlusCircle, Map, Globe, ChevronRight, LogOut, Menu, X, BarChart2 } from 'lucide-react'
 import { listTrips } from '@/lib/api'
 import { tripStatus } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -48,6 +48,24 @@ function SidebarContent({ trips, location, user, collapsed, isMobile, onLogout, 
           {isExpanded && 'Plan a Trip'}
         </button>
       </div>
+
+      {/* Admin link (admin users only) */}
+      {user?.is_admin && (
+        <div className="px-3 pb-1">
+          <Link
+            to="/admin"
+            className={`flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm font-medium transition-colors
+              ${!isExpanded ? 'justify-center' : ''}
+              ${location.pathname === '/admin'
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'}`}
+            title="Admin dashboard"
+          >
+            <BarChart2 size={16} />
+            {isExpanded && 'Admin'}
+          </Link>
+        </div>
+      )}
 
       {/* Trip list */}
       {isExpanded ? (

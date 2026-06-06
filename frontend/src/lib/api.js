@@ -177,6 +177,15 @@ export async function saveDebrief(tripId, debriefText) {
   return res.json()
 }
 
+// ── Admin ────────────────────────────────────────────────────────────────────
+
+export async function fetchAdminStats() {
+  const res = await apiFetch(`${BASE}/admin/stats`)
+  if (res.status === 403) throw new Error('Access denied — admin only')
+  if (!res.ok) throw new Error('Failed to load admin stats')
+  return res.json()
+}
+
 // ── Extraction ───────────────────────────────────────────────────────────────
 
 export async function extractInfo(messages, currency = 'EUR', signal) {

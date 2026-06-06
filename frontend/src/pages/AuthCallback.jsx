@@ -9,8 +9,12 @@ export default function AuthCallback() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    // Token is in the URL fragment (#token) — never sent to servers or logged.
-    const token = window.location.hash.slice(1) || null
+    // Token is in the URL fragment (#<jwt>) — never sent to servers or logged.
+    // Falls back to ?token= query param for backward compatibility with old server versions.
+    const token =
+      window.location.hash.slice(1) ||
+      new URLSearchParams(window.location.search).get('token') ||
+      null
 
     if (!token) {
       setError('No token received from Google.')

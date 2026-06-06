@@ -1,3 +1,5 @@
+import os
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
@@ -7,6 +9,11 @@ from backend.db.database import SessionLocal
 from backend.db.models import User
 
 _bearer = HTTPBearer(auto_error=True)
+
+
+def _is_admin_email(email: str) -> bool:
+    admins = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+    return email.lower() in admins
 
 
 def get_current_user(
@@ -39,4 +46,12 @@ def get_current_user(
             "email":     user.email,
             "name":      user.name,
             "picture":   user.picture,
+            "is_admin":  _is_admin_email(user.email),
         }
+
+
+def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """FastAPI dependency — same as get_current_user but requires is_admin=True."""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user

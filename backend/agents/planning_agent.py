@@ -15,6 +15,23 @@ from backend.config import (
     EXTRACTION_MAX_TOKENS,
 )
 
+
+def _log_claude_usage(model: str, usage) -> None:
+    try:
+        from backend.db.database import SessionLocal
+        from backend.db.models import ClaudeUsageLog
+        with SessionLocal() as session:
+            session.add(ClaudeUsageLog(
+                model=model,
+                input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
+                cache_creation_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+            ))
+            session.commit()
+    except Exception:
+        pass
+
 load_dotenv()
 
 client = Anthropic()
@@ -68,6 +85,7 @@ No markdown, no explanation. JSON object only.""",
                 {"role": "user", "content": f"Extract trip details:\n\n{conversation}"}
             ]
         )
+        _log_claude_usage(HAIKU_MODEL, response.usage)
         raw = response.content[0].text.strip().strip("```json").strip("```").strip()
         return json.loads(raw)
     except Exception:
@@ -157,6 +175,7 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
             ),
             messages=[{"role": "user", "content": itinerary[:8000]}],
         )
+        _log_claude_usage(HAIKU_MODEL, response.usage)
         for block in response.content:
             if hasattr(block, "type") and block.type == "tool_use":
                 return block.input
@@ -318,6 +337,7 @@ def run_agentic_loop(messages: list, system: str | list, on_tool_call=None, coll
                 yield text
 
             final_message = stream.get_final_message()
+            _log_claude_usage(_model, final_message.usage)
 
         if final_message.stop_reason == "end_turn":
             return
@@ -483,6 +503,7 @@ Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any oth
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
+        _log_claude_usage(HAIKU_MODEL, response.usage)
         raw = response.content[0].text.strip()
         # Strip markdown fences if Haiku adds them
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -544,6 +565,7 @@ def extract_preferences(debrief_text: str) -> list[str]:
                 ),
             }],
         )
+        _log_claude_usage(HAIKU_MODEL, response.usage)
         raw = response.content[0].text.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)

@@ -14,7 +14,7 @@ from sqlalchemy import func
 
 from backend.auth.deps import get_admin_user
 from backend.db.database import SessionLocal
-from backend.db.models import Trip, User, UsageLog
+from backend.db.models import Trip, User, UsageLog, ToolCallLog, ClaudeUsageLog
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -104,6 +104,78 @@ def get_stats(current_user: dict = Depends(get_admin_user)):
 
         daily_requests = list(daily.values())
 
+        # ── Tool calls (SerpApi + OpenWeather) ────────────────────────────────
+        _SERPAPI_TOOLS = {"search_flights", "search_hotels", "search_places"}
+
+        all_tool_logs = session.query(ToolCallLog).all()
+        month_tool_logs = [
+            l for l in all_tool_logs
+            if l.created_at and l.created_at.replace(tzinfo=timezone.utc) >= month_ago
+        ]
+
+        tool_stats: dict[str, dict] = {}
+        for log in month_tool_logs:
+            entry = tool_stats.setdefault(log.tool_name, {"total": 0, "cache_hits": 0, "errors": 0})
+            entry["total"] += 1
+            if log.cache_hit:
+                entry["cache_hits"] += 1
+            if not log.success:
+                entry["errors"] += 1
+
+        serpapi_calls_this_month = sum(
+            s["total"] - s["cache_hits"]
+            for name, s in tool_stats.items()
+            if name in _SERPAPI_TOOLS
+        )
+
+        tool_breakdown = [
+            {
+                "tool": name,
+                "total": s["total"],
+                "cache_hits": s["cache_hits"],
+                "errors": s["errors"],
+                "hit_rate": round(s["cache_hits"] / s["total"] * 100, 1) if s["total"] else 0.0,
+            }
+            for name, s in tool_stats.items()
+        ]
+
+        # ── Claude token usage ────────────────────────────────────────────────
+        all_claude_logs = session.query(ClaudeUsageLog).all()
+        month_claude_logs = [
+            l for l in all_claude_logs
+            if l.created_at and l.created_at.replace(tzinfo=timezone.utc) >= month_ago
+        ]
+
+        claude_by_model: dict[str, dict] = {}
+        for log in month_claude_logs:
+            entry = claude_by_model.setdefault(log.model, {
+                "input_tokens": 0, "output_tokens": 0,
+                "cache_read_tokens": 0, "cache_creation_tokens": 0, "calls": 0,
+            })
+            entry["input_tokens"]          += log.input_tokens
+            entry["output_tokens"]         += log.output_tokens
+            entry["cache_read_tokens"]     += log.cache_read_tokens
+            entry["cache_creation_tokens"] += log.cache_creation_tokens
+            entry["calls"]                 += 1
+
+        claude_models = [{"model": m, **v} for m, v in claude_by_model.items()]
+
+        # Daily token totals for last 14 days (input + output combined)
+        daily_tokens: dict[str, int] = {}
+        for i in range(14):
+            day = (now - timedelta(days=13 - i)).date().isoformat()
+            daily_tokens[day] = 0
+        for log in all_claude_logs:
+            if not log.created_at:
+                continue
+            dt = log.created_at.replace(tzinfo=timezone.utc)
+            if dt < now - timedelta(days=14):
+                continue
+            key = dt.date().isoformat()
+            if key in daily_tokens:
+                daily_tokens[key] += (log.input_tokens or 0) + (log.output_tokens or 0)
+        daily_claude_tokens = [{"date": d, "tokens": t} for d, t in daily_tokens.items()]
+
     return {
         "users": {
             "total":          total_users,
@@ -124,6 +196,15 @@ def get_stats(current_user: dict = Depends(get_admin_user)):
             "avg_latency_ms":      avg_latency_ms,
             "top_endpoints":       top_endpoints,
             "daily_requests":      daily_requests,
+        },
+        "tools": {
+            "serpapi_calls_this_month": serpapi_calls_this_month,
+            "serpapi_monthly_cap":      250,
+            "breakdown":                tool_breakdown,
+        },
+        "claude": {
+            "models":             claude_models,
+            "daily_tokens":       daily_claude_tokens,
         },
     }
 

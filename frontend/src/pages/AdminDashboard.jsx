@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts'
-import { Users, Map, Activity, AlertTriangle, Clock, TrendingUp } from 'lucide-react'
+import { Users, Map, Activity, AlertTriangle, Zap, Brain } from 'lucide-react'
 import { fetchAdminStats } from '@/lib/api'
 
 // ── Stat card ────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export default function AdminDashboard() {
     )
   }
 
-  const { users, trips, usage } = stats
+  const { users, trips, usage, tools, claude } = stats
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
@@ -206,6 +206,119 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* ── External APIs ─────────────────────────────────────────────────── */}
+      <div>
+        <SectionTitle>External APIs — this month</SectionTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* SerpApi burn rate */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="rounded-lg p-2 bg-amber-50 text-amber-600 shrink-0"><Zap size={16} /></div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">SerpApi usage</p>
+                <p className="text-2xl font-bold text-slate-800 leading-none">
+                  {tools.serpapi_calls_this_month}
+                  <span className="text-sm font-normal text-slate-400"> / {tools.serpapi_monthly_cap}</span>
+                </p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            {(() => {
+              const pct = Math.min(100, Math.round(tools.serpapi_calls_this_month / tools.serpapi_monthly_cap * 100))
+              const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-400' : 'bg-green-500'
+              return (
+                <div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mb-1">
+                    <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-400">{pct}% of free-tier monthly cap used</p>
+                </div>
+              )
+            })()}
+
+            {/* Per-tool breakdown */}
+            {tools.breakdown.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {tools.breakdown.map((t) => (
+                  <div key={t.tool} className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-slate-600 truncate">{t.tool}</span>
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
+                      <span className="text-slate-400">{t.total} calls</span>
+                      <span className="text-green-600 font-medium">{t.hit_rate}% cached</span>
+                      {t.errors > 0 && <span className="text-red-500">{t.errors} err</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tools.breakdown.length === 0 && (
+              <p className="text-xs text-slate-400 mt-4">No tool calls recorded yet.</p>
+            )}
+          </div>
+
+          {/* Anthropic token usage */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="rounded-lg p-2 bg-indigo-50 text-indigo-600 shrink-0"><Brain size={16} /></div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Anthropic tokens</p>
+                <p className="text-2xl font-bold text-slate-800 leading-none">
+                  {claude.models.reduce((s, m) => s + m.input_tokens + m.output_tokens, 0).toLocaleString()}
+                  <span className="text-sm font-normal text-slate-400"> total</span>
+                </p>
+              </div>
+            </div>
+            {claude.models.length === 0 ? (
+              <p className="text-xs text-slate-400">No Claude calls recorded yet.</p>
+            ) : (
+              <div className="space-y-3 mt-2">
+                {claude.models.map((m) => {
+                  const shortModel = m.model.includes('haiku') ? 'Haiku' : m.model.includes('sonnet') ? 'Sonnet' : m.model.includes('opus') ? 'Opus' : m.model
+                  const cacheHitPct = m.input_tokens > 0
+                    ? Math.round(m.cache_read_tokens / (m.input_tokens + m.cache_read_tokens) * 100)
+                    : 0
+                  return (
+                    <div key={m.model} className="rounded-lg bg-slate-50 p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-slate-700">{shortModel}</span>
+                        <span className="text-xs text-slate-400">{m.calls.toLocaleString()} calls</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-slate-500">
+                        <span>Input: <b className="text-slate-700">{m.input_tokens.toLocaleString()}</b></span>
+                        <span>Output: <b className="text-slate-700">{m.output_tokens.toLocaleString()}</b></span>
+                        <span>Cache read: <b className="text-green-600">{m.cache_read_tokens.toLocaleString()}</b></span>
+                        <span>Cache hit: <b className="text-green-600">{cacheHitPct}%</b></span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Claude daily tokens chart ──────────────────────────────────────── */}
+      {claude.daily_tokens.some(d => d.tokens > 0) && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <SectionTitle>Anthropic tokens per day — last 14 days</SectionTitle>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={claude.daily_tokens} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                labelFormatter={shortDate}
+                formatter={v => [v.toLocaleString(), 'Tokens']}
+              />
+              <Bar dataKey="tokens" name="Tokens" fill={INDIGO} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* ── Recent users table ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">

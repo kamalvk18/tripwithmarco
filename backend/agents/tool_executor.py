@@ -1,8 +1,26 @@
+import time
+
 from backend.tools.flights import search_flights, format_flights_for_marco
 from backend.tools.weather import get_weather_forecast, format_weather_for_marco
 from backend.tools.hotels import search_hotels, format_hotels_for_marco
 from backend.tools.places import search_places, format_places_for_marco
 from backend.tools.cache import get_cached, set_cached
+
+
+def _log_tool_call(tool_name: str, cache_hit: bool, success: bool, duration_ms: int) -> None:
+    try:
+        from backend.db.database import SessionLocal
+        from backend.db.models import ToolCallLog
+        with SessionLocal() as session:
+            session.add(ToolCallLog(
+                tool_name=tool_name,
+                cache_hit=cache_hit,
+                success=success,
+                duration_ms=duration_ms,
+            ))
+            session.commit()
+    except Exception:
+        pass
 
 
 def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None) -> str:
@@ -17,8 +35,10 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
     cached = get_cached(tool_name, tool_input)
     if cached is not None:
         print(f"✅ Cache hit: {tool_name}")
+        _log_tool_call(tool_name, cache_hit=True, success=True, duration_ms=0)
         return cached
 
+    start = time.monotonic()
     try:
         if tool_name == "search_hotels":
             hotels = search_hotels(
@@ -45,6 +65,7 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 tool_input["check_out_date"],
             )
             set_cached(tool_name, tool_input, result)
+            _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 
         elif tool_name == "search_places":
@@ -58,6 +79,7 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 tool_input["location"],
             )
             set_cached(tool_name, tool_input, result)
+            _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 
         elif tool_name == "search_flights":
@@ -77,6 +99,7 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 currency=currency,
             )
             set_cached(tool_name, tool_input, result)
+            _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 
         elif tool_name == "get_weather_forecast":
@@ -86,15 +109,18 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
             )
             result = format_weather_for_marco(weather_data)
             set_cached(tool_name, tool_input, result)
+            _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 
         else:
             return f"Unknown tool: {tool_name}"
 
     except KeyError as e:
+        _log_tool_call(tool_name, cache_hit=False, success=False, duration_ms=int((time.monotonic() - start) * 1000))
         print(f"⚠️  Tool '{tool_name}' missing required input: {e}")
         return f"Tool '{tool_name}' was called with a missing required field. Do not retry."
     except Exception as e:
+        _log_tool_call(tool_name, cache_hit=False, success=False, duration_ms=int((time.monotonic() - start) * 1000))
         # Log the real error server-side; never return raw exception strings to Claude
         # — HTTP library errors can include API keys embedded in URL query params.
         print(f"⚠️  Tool '{tool_name}' error: {e}")

@@ -304,6 +304,7 @@ export function ExpenseTracker({
   const [tab, setTab]       = useState('expenses')
   const [form, setForm]     = useState({ category: 'food', amount: '', description: '', date: '' })
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState(null)
   const [filter, setFilter] = useState('mine')
 
   // Group trip: who paid, and how to split
@@ -345,6 +346,7 @@ export function ExpenseTracker({
     evt.preventDefault()
     if (!form.amount || isNaN(parseFloat(form.amount))) return
     setAdding(true)
+    setAddError(null)
     try {
       const amount = parseFloat(form.amount)
       let splits = []
@@ -367,6 +369,8 @@ export function ExpenseTracker({
       onUpdate?.([...spending, saved])
       setForm({ category: 'food', amount: '', description: '', date: '' })
       if (splitMode === 'select') setSplitWith([])
+    } catch {
+      setAddError('Failed to log expense. Please try again.')
     } finally {
       setAdding(false)
     }
@@ -615,6 +619,9 @@ export function ExpenseTracker({
                   </div>
                 )}
 
+                {addError && (
+                  <p className="text-xs text-red-500">{addError}</p>
+                )}
                 <Button type="submit" variant="primary" size="sm" disabled={adding || !form.amount} className="self-start">
                   <PlusCircle size={14} /> {adding ? 'Adding…' : 'Log Expense'}
                 </Button>

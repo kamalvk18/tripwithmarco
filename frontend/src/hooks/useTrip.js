@@ -74,8 +74,11 @@ export function useTrip(id) {
         const hasDays   = extractedDays?.length > 0
         const hasBudget = newBudget != null && newBudget > 0
         if (hasBd || hasDays || hasBudget) {
+          // Read from cache — not from `data` — so that user changes made while
+          // extractInfo was running (e.g. adding an expense) are not clobbered.
+          const current = tripCache.get(id) ?? data
           const upgraded = {
-            ...data,
+            ...current,
             ...(hasBd     ? { budget_breakdown: bd }      : {}),
             ...(hasDays   ? { days: extractedDays }        : {}),
             ...(hasBudget ? { budget: newBudget }          : {}),

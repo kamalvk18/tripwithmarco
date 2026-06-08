@@ -60,7 +60,7 @@ Return ONLY a JSON object with these exact fields:
 
 No markdown, no explanation. JSON object only."""
 
-_CHECKLIST_SYSTEM = """You are a pre-trip checklist generator for solo travellers.
+_CHECKLIST_SYSTEM = """You are a pre-trip checklist generator for travellers.
 
 CRITICAL CONTEXT RULES — apply these before generating any item:
 1. DOMESTIC TRAVEL: If the destination country matches the passport/citizenship country (e.g. Indian citizen → Ladakh/India, US citizen → New York, etc.) this is a DOMESTIC trip. For domestic travel:

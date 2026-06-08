@@ -15,7 +15,7 @@ function SidebarContent({ trips, location, user, collapsed, isMobile, onLogout, 
       <div className="flex items-center gap-2 px-4 py-4 border-b border-slate-100">
         <Globe className="text-indigo-600 shrink-0" size={22} />
         {isExpanded && (
-          <span className="text-slate-800 font-bold tracking-tight truncate">Solo Travel</span>
+          <span className="text-slate-800 font-bold tracking-tight truncate">Marco</span>
         )}
         {isMobile ? (
           <button
@@ -221,7 +221,7 @@ export function Layout({ children }) {
           <Menu size={22} />
         </button>
         <Globe className="text-indigo-600" size={20} />
-        <span className="font-bold text-slate-800 text-sm tracking-tight">Solo Travel</span>
+        <span className="font-bold text-slate-800 text-sm tracking-tight">Marco</span>
         <button
           onClick={() => navigate('/plan')}
           className="ml-auto flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer"

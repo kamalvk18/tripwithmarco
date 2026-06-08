@@ -4,10 +4,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   RefreshCw, Navigation, RotateCcw, Download, Plane,
-  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed, Map,
+  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed, Map, Share2,
 } from 'lucide-react'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
 import { saveDebrief } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 import { useTrip } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { useWeatherCache } from '@/hooks/useWeatherCache'
@@ -19,6 +20,7 @@ import { ChatPanel } from '@/components/ChatPanel'
 import { ExpenseTracker } from '@/components/ExpenseTracker'
 import { ChecklistPanel } from '@/components/ChecklistPanel'
 import { EmailBriefingConfig } from '@/components/EmailBriefingConfig'
+import { SharePanel, MemberAvatarStack } from '@/components/SharePanel'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -26,6 +28,7 @@ import { Spinner } from '@/components/ui/Spinner'
 export default function TripView() {
   const { id }   = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   // ── Data & derived state (all trip concerns live in the hook) ──────────────
   const {
@@ -34,7 +37,10 @@ export default function TripView() {
     status, label, dayNum,
     saveMessages, updateSpending, updateChecklist, updateEmailConfig,
     updateDayOverride, updateDebrief, updateNearMe, getCachedNearMeResponse, remove,
+    updateMembers,
   } = useTrip(id)
+
+  const isOwner = tripData?.is_owner ?? true  // default true for own trips before load
 
   // ── UI-only state ──────────────────────────────────────────────────────────
   const { streaming, toolStatus, send } = useSSEChat()
@@ -51,6 +57,7 @@ export default function TripView() {
   )
 
   const [showMap, setShowMap]             = useState(false)
+  const [showShare, setShowShare]         = useState(false)
   const [showCompanion, setShowCompanion] = useState(false)
   const [weatherText, setWeatherText]     = useState(null)
   const [rebuilding, setRebuilding]       = useState(false)
@@ -262,17 +269,27 @@ export default function TripView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">{tripData.destination}</h1>
           <p className="text-slate-500 text-sm">{tripData.dates}</p>
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-3 flex-wrap">
             <Badge variant={status}>{label}</Badge>
+            {tripData.members?.length > 1 && (
+              <MemberAvatarStack members={tripData.members} max={5} />
+            )}
+            {!isOwner && (
+              <span className="text-xs text-slate-400 italic">
+                Shared by {tripData.members?.find(m => m.role === 'owner')?.name ?? 'someone'}
+              </span>
+            )}
           </div>
         </div>
-        <button
-          onClick={handleDelete}
-          className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-          title="Delete trip"
-        >
-          <Trash2 size={16} />
-        </button>
+        {isOwner && (
+          <button
+            onClick={handleDelete}
+            className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            title="Delete trip"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
 
       {/* Action buttons */}
@@ -307,7 +324,7 @@ export default function TripView() {
             </Button>
           </>
         )}
-        {status === 'past' && !tripData.debrief && (
+        {isOwner && status === 'past' && !tripData.debrief && (
           <Button
             variant="secondary"
             onClick={handleDebrief}
@@ -317,13 +334,21 @@ export default function TripView() {
             {debriefing ? 'Getting debrief…' : 'Post-Trip Debrief'}
           </Button>
         )}
-        {days.length === 0 && (
+        {days.length === 0 && isOwner && (
           <Button variant="primary" onClick={handleContinuePlanning}>
             <Plane size={14} /> Continue Planning
           </Button>
         )}
-        <Button variant="secondary" onClick={handleRegenerate}>
-          <RotateCcw size={14} /> Regenerate Plan
+        {isOwner && (
+          <Button variant="secondary" onClick={handleRegenerate}>
+            <RotateCcw size={14} /> Regenerate Plan
+          </Button>
+        )}
+        <Button
+          variant="secondary"
+          onClick={() => setShowShare(s => !s)}
+        >
+          <Share2 size={14} /> {showShare ? 'Hide Share' : 'Share'}
         </Button>
         {days.length > 0 && (
           <Button
@@ -374,7 +399,20 @@ export default function TripView() {
         </div>
       )}
 
-      {/* Budget */}
+      {/* Share & Members panel */}
+      {showShare && (
+        <div className="mb-4">
+          <SharePanel
+            tripId={id}
+            isOwner={isOwner}
+            members={tripData.members ?? []}
+            onMembersChange={updateMembers}
+            onLeave={() => navigate('/')}
+          />
+        </div>
+      )}
+
+      {/* Budget — per-person budget */}
       {(tripData.budget > 0 || (tripData.budget_breakdown && Object.keys(tripData.budget_breakdown).length > 0)) && (
         <div className="mb-4">
           <BudgetPanel
@@ -393,6 +431,8 @@ export default function TripView() {
             spending={tripData.spending ?? []}
             breakdown={tripData.budget_breakdown ?? {}}
             currency={tripData.currency ?? 'EUR'}
+            currentUserId={user?.id}
+            isOwner={isOwner}
             onUpdate={updateSpending}
           />
         </div>
@@ -410,8 +450,8 @@ export default function TripView() {
         </div>
       )}
 
-      {/* Daily briefing email */}
-      {(status === 'upcoming' || status === 'active') && (
+      {/* Daily briefing email — owner only */}
+      {isOwner && (status === 'upcoming' || status === 'active') && (
         <div className="mb-6 space-y-2">
           <EmailBriefingConfig
             tripId={id}

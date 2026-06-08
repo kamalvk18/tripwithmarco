@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 
 from backend.db.database import Base
 
@@ -18,16 +18,29 @@ class User(Base):
 class Trip(Base):
     __tablename__ = "trips"
 
-    trip_id     = Column(String, primary_key=True)
-    user_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    destination = Column(String, default="")
-    start_date  = Column(String, default="", index=True)
-    end_date    = Column(String, default="")
-    dates       = Column(String, default="")
-    saved_at    = Column(String, default="", index=True)
-    budget      = Column(Float,  nullable=True)
-    currency    = Column(String, nullable=True)
-    data        = Column(Text,   nullable=False)
+    trip_id      = Column(String, primary_key=True)
+    user_id      = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    destination  = Column(String, default="")
+    start_date   = Column(String, default="", index=True)
+    end_date     = Column(String, default="")
+    dates        = Column(String, default="")
+    saved_at     = Column(String, default="", index=True)
+    budget       = Column(Float,  nullable=True)
+    currency     = Column(String, nullable=True)
+    data         = Column(Text,   nullable=False)
+    invite_token = Column(String, nullable=True, unique=True, index=True)
+
+
+class TripMember(Base):
+    """Tracks users who have joined a trip via an invite link (not the owner)."""
+    __tablename__ = "trip_members"
+
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    trip_id   = Column(String, ForeignKey("trips.trip_id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (UniqueConstraint("trip_id", "user_id", name="uq_trip_member"),)
 
 
 class UsageLog(Base):

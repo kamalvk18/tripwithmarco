@@ -22,7 +22,16 @@ export default function AuthCallback() {
     }
 
     loginWithToken(token)
-      .then(() => navigate('/', { replace: true }))
+      .then(() => {
+        // Resume a pending join if the user was redirected here from a join link
+        const pendingJoin = localStorage.getItem('sta_pending_join')
+        if (pendingJoin) {
+          localStorage.removeItem('sta_pending_join')
+          navigate(pendingJoin, { replace: true })
+        } else {
+          navigate('/', { replace: true })
+        }
+      })
       .catch(() => {
         setError('Sign-in failed — please try again.')
         setTimeout(() => navigate('/login', { replace: true }), 2000)

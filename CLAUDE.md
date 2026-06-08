@@ -46,7 +46,7 @@ When `companion_mode=True`, `chat()` pre-fetches live weather and injects today'
 The destination and origin fields in the trip form are plain text inputs — no autocomplete. `destinationCountryCode` is no longer populated by the form; the backend derives it via `extract_trip_details()` (Haiku extraction from the conversation text).
 
 ### Persistence
-Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db` on Fly.io). Each row holds indexed summary columns plus a full JSON blob of the trip. The `messages` array inside the blob is the full conversation history — the trip record IS the conversation. `trip_store.py` is the only entry point; no other module touches the DB directly. To swap to Postgres, set `DATABASE_URL=postgresql://...`.
+Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db` on a persistent volume). Each row holds indexed summary columns plus a full JSON blob of the trip. The `messages` array inside the blob is the full conversation history — the trip record IS the conversation. `trip_store.py` is the only entry point; no other module touches the DB directly. To swap to Postgres, set `DATABASE_URL=postgresql://...`.
 
 ### Tool Result Caching
 `backend/tools/cache.py` caches SerpApi and OpenWeather HTTP responses to disk. TTLs: weather 1h, flights/hotels 6h, places 24h. This only skips external API calls — Claude inference still runs on every request.

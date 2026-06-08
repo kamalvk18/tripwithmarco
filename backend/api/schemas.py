@@ -30,6 +30,16 @@ class ChatRequest(BaseModel):
 
 # ── Trips ────────────────────────────────────────────────────────────────────
 
+class TripMemberInfo(BaseModel):
+    """A single trip participant (owner or joined member)."""
+    user_id: int
+    name: str = ""
+    picture: str = ""
+    email: str = ""
+    role: str = "member"      # "owner" | "member"
+    joined_at: str = ""
+
+
 class TripSummary(BaseModel):
     """Lightweight trip info returned by list_trips."""
     trip_id: str
@@ -40,6 +50,8 @@ class TripSummary(BaseModel):
     end_date: str = ""
     budget: float | None = None
     currency: str | None = None
+    is_member: bool = False        # True when the caller joined but doesn't own the trip
+    owner_name: str = ""           # Non-empty only when is_member=True
 
 
 class TripDetail(BaseModel):
@@ -101,6 +113,8 @@ class Expense(BaseModel):
     amount: float
     description: str = ""
     date: str = ""
+    added_by_user_id: int | None = None   # who logged this expense
+    added_by_name: str = ""               # display name of the logger
 
 
 # ── Checklist ────────────────────────────────────────────────────────────────
@@ -152,3 +166,28 @@ class ExtractResponse(BaseModel):
     budget: float | None = None
     days: list[DayPlan] = Field(default_factory=list)
     budget_breakdown: BudgetBreakdown = Field(default_factory=BudgetBreakdown)
+
+
+# ── Sharing ───────────────────────────────────────────────────────────────────
+
+class InviteTokenResponse(BaseModel):
+    invite_token: str
+    invite_url: str
+
+
+class TripPreviewResponse(BaseModel):
+    """Public preview of a trip shown before joining (no auth required)."""
+    trip_id: str
+    destination: str
+    dates: str
+    owner_name: str
+    owner_picture: str = ""
+
+
+class JoinResponse(BaseModel):
+    trip_id: str
+    message: str = "Joined successfully"
+
+
+class MembersResponse(BaseModel):
+    members: list[TripMemberInfo]

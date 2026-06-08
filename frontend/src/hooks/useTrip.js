@@ -142,6 +142,11 @@ export function useTrip(id) {
     label,
     dayNum,
     // Actions
+    updateMembers: newMembers => {
+      const next = { ...tripData, members: newMembers }
+      tripCache.set(id, next)
+      setTripData(next)
+    },
     saveMessages: msgs => {
       const newItinerary = computeItinerary(msgs)
       const newDays = extractAllDays(newItinerary)
@@ -158,7 +163,12 @@ export function useTrip(id) {
 
       return patch(updates)
     },
-    updateSpending:    spending  => patch({ spending }),
+    // Expense endpoints already persist to DB — only sync local state here.
+    updateSpending: spending => {
+      const next = { ...tripData, spending }
+      tripCache.set(id, next)
+      setTripData(next)
+    },
     updateChecklist:   checklist => patch({ checklist }),
     updateEmailConfig: cfg       => patch({ email_config: cfg }),
     updateDayOverride: (num, text) => patch({

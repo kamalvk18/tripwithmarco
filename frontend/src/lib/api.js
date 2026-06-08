@@ -177,6 +177,55 @@ export async function saveDebrief(tripId, debriefText) {
   return res.json()
 }
 
+// ── Sharing ──────────────────────────────────────────────────────────────────
+
+export async function getInvitePreview(token) {
+  try {
+    const res = await fetch(`${BASE}/trips/invite/${token}`)
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function generateInviteLink(tripId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/invite`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to generate invite link')
+  return res.json()  // { invite_token, invite_url }
+}
+
+export async function regenerateInviteLink(tripId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/invite/regenerate`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to regenerate invite link')
+  return res.json()
+}
+
+export async function revokeInviteLink(tripId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/invite`, { method: 'DELETE' })
+  return res.ok
+}
+
+export async function joinTrip(token) {
+  const res = await apiFetch(`${BASE}/trips/join/${token}`, { method: 'POST' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || 'Failed to join trip')
+  }
+  return res.json()  // { trip_id, message }
+}
+
+export async function kickMember(tripId, userId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/members/${userId}`, { method: 'DELETE' })
+  return res.ok
+}
+
+export async function leaveTrip(tripId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/leave`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to leave trip')
+  return res.ok
+}
+
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 export async function fetchAdminStats() {

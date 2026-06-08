@@ -60,7 +60,7 @@ Two-step: geocode city via OpenWeather Geo API, then fetch 5-day/3-hour forecast
 
 `trip_store.py` is the only entry point for persistence — no other module touches the DB directly.
 
-- Storage: SQLite via SQLAlchemy (`data/trips.db` locally, `/data/trips.db` on Fly.io). Swap to Postgres with `DATABASE_URL=postgresql://...`.
+- Storage: SQLite via SQLAlchemy (`data/trips.db` locally). Swap to Postgres (e.g. Neon) with `DATABASE_URL=postgresql://...`.
 - Schema: `Trip` table in `models.py` — indexed summary columns (`trip_id`, `destination`, `start_date`, `end_date`, `saved_at`, `budget`, `currency`) plus a `data TEXT` column holding the full trip JSON blob.
 - Trip IDs are timestamp strings (`20260516_225345`). The `messages` field inside the blob is the full conversation history.
 - `update_trip()` rewrites the JSON blob and syncs the indexed columns. No partial updates at the DB layer — callers load, mutate, then call `update_trip()`.

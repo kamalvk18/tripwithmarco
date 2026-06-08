@@ -8,25 +8,27 @@ import TripView from '@/pages/TripView'
 import Login from '@/pages/Login'
 import AuthCallback from '@/pages/AuthCallback'
 import AdminDashboard from '@/pages/AdminDashboard'
+import JoinTrip from '@/pages/JoinTrip'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public routes — no layout */}
+          {/* Public routes — no auth, no layout */}
           <Route path="/login"         element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/join/:token"   element={<JoinTrip />} />
 
           {/* Protected routes — inside sidebar layout */}
           <Route path="/*" element={
             <ProtectedRoute>
               <Layout>
                 <Routes>
-                  <Route index           element={<Home />} />
-                  <Route path="plan"     element={<PlanTrip />} />
+                  <Route index            element={<Home />} />
+                  <Route path="plan"      element={<PlanTrip />} />
                   <Route path="trips/:id" element={<TripView />} />
-                  <Route path="admin"    element={<AdminDashboard />} />
+                  <Route path="admin"     element={<AdminDashboard />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

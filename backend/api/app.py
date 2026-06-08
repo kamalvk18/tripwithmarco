@@ -1,5 +1,5 @@
 """
-FastAPI application factory for Solo Travel Agent.
+FastAPI application factory for Marco.
 
 Start the API server:
     uvicorn backend.api.app:app --reload --port 8000
@@ -114,7 +114,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Solo Travel Agent API",
+    title="Marco API",
     description="Marco — your AI travel companion.",
     version="0.3.0",
     lifespan=lifespan,

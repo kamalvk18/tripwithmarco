@@ -8,7 +8,7 @@ Required env var:
     RESEND_API_KEY — get a free key at resend.com (3,000 emails/month free)
 
 Optional env var:
-    RESEND_FROM — sender address (default: Marco <marco@solo-travel-agent.app>)
+    RESEND_FROM — sender address (default: Marco <marco@marco.app>)
                   Must be a verified domain in your Resend account.
                   For testing, Resend's sandbox allows any address.
 """
@@ -27,7 +27,7 @@ from backend.db.trip_store import load_trip, list_trips
 load_dotenv()
 
 resend.api_key = os.getenv("RESEND_API_KEY", "")
-_FROM = os.getenv("RESEND_FROM", "Marco <marco@solo-travel-agent.app>")
+_FROM = os.getenv("RESEND_FROM", "Marco <marco@marco.app>")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ def _build_html(
   </div>
 
   <div class="footer">
-    Sent by Marco · Solo Travel Agent<br>
+    Sent by Marco<br>
     <a href="#" style="color:#6366f1">Manage email preferences</a>
   </div>
 </div>

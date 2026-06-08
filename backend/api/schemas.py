@@ -1,5 +1,5 @@
 """
-Pydantic request/response models for the Solo Travel Agent API.
+Pydantic request/response models for the Marco API.
 """
 
 from typing import Any, Literal

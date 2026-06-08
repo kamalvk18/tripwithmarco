@@ -9,7 +9,7 @@ async function geocodeOne(query) {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
       {
-        headers: { 'Accept-Language': 'en', 'User-Agent': 'SoloTravelAgent/1.0' },
+        headers: { 'Accept-Language': 'en', 'User-Agent': 'Marco/1.0' },
         signal: AbortSignal.timeout(6000),
       }
     )

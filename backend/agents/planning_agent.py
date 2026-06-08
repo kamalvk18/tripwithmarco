@@ -376,12 +376,20 @@ def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, o
 
     today = datetime.now().strftime("%A, %B %d, %Y")
     user_currency = (trip_data or {}).get("currency", "EUR")
+    num_travelers = int((trip_data or {}).get("number_of_travelers") or 1)
     dynamic_context = (
         f"\n\n## Current Date\nToday is {today}."
         f"\n\n## User Currency\nThe user's selected currency is **{user_currency}**. "
         f"Always pass `currency: \"{user_currency}\"` when calling search_flights. "
         f"Show all prices in {user_currency} — never convert or mention another currency."
     )
+    if num_travelers > 1:
+        dynamic_context += (
+            f"\n\n## Group Size\nThis trip is for a **group of {num_travelers} people**. "
+            f"The stated budget is **per person** — do not multiply it. "
+            f"Account for group logistics: shared accommodation options, group-friendly venues, "
+            f"and activities that work for {num_travelers} people traveling together."
+        )
 
     if companion_mode and trip_data:
         trip_day = get_trip_day(

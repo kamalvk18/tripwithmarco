@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Solo Travel Agent is a React + FastAPI + Anthropic Claude app. The AI persona "Marco" plans trips and acts as a real-time travel companion. The app uses an agentic loop where Claude autonomously calls tools (flights, hotels, places, weather) to ground its itineraries in live data.
+Marco is a React + FastAPI + Anthropic Claude app. The AI persona "Marco" plans trips and acts as a real-time travel companion. The app uses an agentic loop where Claude autonomously calls tools (flights, hotels, places, weather) to ground its itineraries in live data.
 
 ## Development Commands
 
@@ -97,7 +97,7 @@ Production stack: **Neon** (Postgres) + **Render** (backend) + **Vercel** (front
 - Root directory: `frontend/`
 - Build command: `npm run build` / output: `dist`
 - `vercel.json` handles SPA rewrites (already committed)
-- Set `VITE_API_URL` = your Render backend URL (e.g. `https://solo-travel-agent.onrender.com`)
+- Set `VITE_API_URL` = your Render backend URL (e.g. `https://marco.onrender.com`)
 
 ### Database — Neon (Postgres)
 - Copy the connection string from Neon dashboard → set as `DATABASE_URL` on Render

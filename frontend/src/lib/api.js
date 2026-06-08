@@ -1,5 +1,5 @@
 /**
- * HTTP client for the Solo Travel Agent API.
+ * HTTP client for the Marco API.
  * All requests include the stored JWT as a Bearer token.
  * On 401 the token is cleared and the browser is sent to /login.
  */

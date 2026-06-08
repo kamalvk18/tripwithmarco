@@ -207,6 +207,7 @@ export default function TripView() {
           endDate:    tripData.end_date   ?? '',
           budget:     String(tripData.budget ?? ''),
           currency:   tripData.currency   ?? 'EUR',
+          numberOfTravelers: tripData.number_of_travelers ?? 1,
           hasTwoWheelerLicence:  tripData.has_two_wheeler_licence  ?? false,
           hasFourWheelerLicence: tripData.has_four_wheeler_licence ?? false,
         },
@@ -229,6 +230,7 @@ export default function TripView() {
             endDate:                tripData.end_date       ?? '',
             budget:                 String(tripData.budget ?? ''),
             currency:               tripData.currency       ?? 'EUR',
+            numberOfTravelers:      tripData.number_of_travelers ?? 1,
             hasTwoWheelerLicence:   tripData.has_two_wheeler_licence  ?? false,
             hasFourWheelerLicence:  tripData.has_four_wheeler_licence ?? false,
           },
@@ -569,16 +571,16 @@ export default function TripView() {
           ...(tripData.hotel_suggestions?.length > 0
             ? tripData.hotel_suggestions.map(h => ({
                 label: h.name,
-                url: `https://www.booking.com/searchresults.html?ss=${enc(`${h.name} ${h.destination}`)}&checkin=${h.check_in}&checkout=${h.check_out}&group_adults=1`,
+                url: `https://www.booking.com/searchresults.html?ss=${enc(`${h.name} ${h.destination}`)}&checkin=${h.check_in}&checkout=${h.check_out}&group_adults=${tripData.number_of_travelers || 1}`,
               }))
             : [{
                 label: 'Search Hotels',
-                url: `https://www.booking.com/searchresults.html?ss=${enc(dest)}&checkin=${start}&checkout=${end}&group_adults=1`,
+                url: `https://www.booking.com/searchresults.html?ss=${enc(dest)}&checkin=${start}&checkout=${end}&group_adults=${tripData.number_of_travelers || 1}`,
               }]
           ),
           {
             label: 'Airbnb',
-            url: `https://www.airbnb.com/s/${enc(dest)}/homes?checkin=${start}&checkout=${end}&adults=1`,
+            url: `https://www.airbnb.com/s/${enc(dest)}/homes?checkin=${start}&checkout=${end}&adults=${tripData.number_of_travelers || 1}`,
           },
         ]
 

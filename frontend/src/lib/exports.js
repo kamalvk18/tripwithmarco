@@ -40,7 +40,7 @@ export function buildICS(tripData, days) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Solo Travel Agent//Marco//EN',
+    'PRODID:-//Marco//Marco//EN',
     'CALSCALE:GREGORIAN',
   ]
 
@@ -58,7 +58,7 @@ export function buildICS(tripData, days) {
       `DTEND;VALUE=DATE:${nextDate}`,
       `SUMMARY:${icsEscape(summary)}`,
       `DESCRIPTION:${icsEscape(content)}`,
-      `UID:marco-day${day.num}-${tripData.trip_id ?? 'trip'}@solo-travel-agent`,
+      `UID:marco-day${day.num}-${tripData.trip_id ?? 'trip'}@marco`,
       'END:VEVENT',
     )
   }
@@ -104,7 +104,7 @@ export function buildOfflineHTML(tripData, days) {
 </head>
 <body>
   <h1>${tripData.destination}</h1>
-  <p class="meta">${tripData.dates} &bull; Saved offline by Solo Travel Agent</p>
+  <p class="meta">${tripData.dates} &bull; Saved offline by Marco</p>
   ${dayBlocks}
 </body>
 </html>`

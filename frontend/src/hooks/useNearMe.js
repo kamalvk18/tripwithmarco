@@ -32,7 +32,7 @@ export function useNearMe() {
 
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=14`,
-        { headers: { 'User-Agent': 'SoloTravelAgent/1.0 (solo-travel-agent)' } }
+        { headers: { 'User-Agent': 'Marco/1.0 (marco)' } }
       )
       const data = await res.json()
       const a    = data.address ?? {}

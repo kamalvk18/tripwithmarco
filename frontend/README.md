@@ -1,4 +1,4 @@
-# Solo Travel Agent — React Frontend
+# Marco — React Frontend
 
 Vite + React 19 + Tailwind CSS v4 single-page application. Communicates exclusively with the FastAPI backend via the HTTP client in `src/lib/api.js`.
 

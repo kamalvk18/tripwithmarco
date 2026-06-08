@@ -1,4 +1,4 @@
-# Solo Travel Agent
+# Marco
 
 AI-powered travel planning app built around **Marco** — an opinionated travel companion. Marco builds day-by-day itineraries using live flight, hotel, weather, and places data via an agentic tool-use loop, then stays with you throughout the trip.
 

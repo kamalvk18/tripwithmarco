@@ -75,6 +75,7 @@ export default function PlanTrip() {
     endDate:                (resume?.meta ?? prefill).endDate                ?? '',
     budget:                 (resume?.meta ?? prefill).budget                 ?? '',
     currency:               (resume?.meta ?? prefill).currency               ?? 'EUR',
+    numberOfTravelers:      (resume?.meta ?? prefill).numberOfTravelers      ?? 1,
     travelStyles: [],
     dietary: 'None',
     hasTwoWheelerLicence:  (resume?.meta ?? prefill).hasTwoWheelerLicence  ?? false,
@@ -172,6 +173,7 @@ export default function PlanTrip() {
       has_four_wheeler_licence: form.hasFourWheelerLicence,
       budget: parseFloat(form.budget) || 0,
       currency: form.currency,
+      number_of_travelers: form.numberOfTravelers || 1,
       budget_breakdown: {},
       day_overrides: {},
     }
@@ -182,12 +184,14 @@ export default function PlanTrip() {
       ? Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000)
       : '?'
     const styles = form.travelStyles.join(', ') || 'flexible'
+    const travelers = form.numberOfTravelers || 1
     return [
       `Plan my trip with these details:`,
       `Destination: ${form.destination}.`,
       `Flying from: ${form.origin}.`,
       `Dates: ${form.startDate} to ${form.endDate} (${nights} nights).`,
-      `Budget: ${form.budget} ${form.currency}.`,
+      travelers > 1 ? `Traveling as a group of ${travelers} people.` : '',
+      `Budget: ${form.budget} ${form.currency} per person.`,
       `Travel style: ${styles}.`,
       form.dietary !== 'None' ? `Dietary: ${form.dietary}.` : '',
       form.hasTwoWheelerLicence && form.hasFourWheelerLicence
@@ -301,6 +305,7 @@ export default function PlanTrip() {
         country_code:  extracted.country_code || form.destinationCountryCode || '',
         budget:        parseFloat(form.budget) || 0,
         currency:      form.currency,
+        number_of_travelers: form.numberOfTravelers || 1,
         budget_breakdown: extracted.budget_breakdown || {},
         days:          extracted.days?.length > 0 ? extracted.days : undefined,
         messages:      msgs,
@@ -408,9 +413,9 @@ export default function PlanTrip() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label>Budget</Label>
+              <Label>Budget per person</Label>
               <Input
                 type="number"
                 min="0"
@@ -424,6 +429,17 @@ export default function PlanTrip() {
               <Select value={form.currency} onChange={e => setField('currency', e.target.value)}>
                 {CURRENCIES.map(c => <option key={c}>{c}</option>)}
               </Select>
+            </div>
+            <div>
+              <Label>Travelers</Label>
+              <Input
+                type="number"
+                min="1"
+                max="50"
+                placeholder="e.g. 1"
+                value={form.numberOfTravelers}
+                onChange={e => setField('numberOfTravelers', Math.max(1, parseInt(e.target.value) || 1))}
+              />
             </div>
           </div>
 
@@ -521,7 +537,8 @@ export default function PlanTrip() {
             <h1 className="text-xl font-bold text-slate-900">{form.destination}</h1>
             <p className="text-slate-500 text-xs">
               {form.startDate} → {form.endDate}
-              {form.budget ? ` · ${form.budget} ${form.currency}` : ''}
+              {form.budget ? ` · ${form.budget} ${form.currency}/person` : ''}
+              {form.numberOfTravelers > 1 ? ` · ${form.numberOfTravelers} travelers` : ''}
             </p>
           </div>
         </div>

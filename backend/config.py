@@ -1,5 +1,5 @@
 """
-Central configuration for Solo Travel Agent.
+Central configuration for Marco.
 Update model names here when upgrading — do not hardcode them in other files.
 """
 

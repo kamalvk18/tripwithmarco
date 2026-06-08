@@ -1,5 +1,5 @@
 """
-Entry point for Solo Travel Agent.
+Entry point for Marco.
 
 Usage:
     uv run main.py --api    # launch FastAPI server only (port 8000)
@@ -36,7 +36,7 @@ def main():
 
     if "--api" in args:
         port = "8000"
-        print(f"🌍 Starting Solo Travel Agent API on http://localhost:{port} ...")
+        print(f"🌍 Starting Marco API on http://localhost:{port} ...")
         print("   Docs at http://localhost:8000/docs")
         subprocess.run(
             ["uvicorn", "backend.api.app:app", "--reload", "--port", port],

@@ -10,7 +10,7 @@ export default function Login() {
             <Globe className="text-white" size={20} />
           </div>
           <span className="text-xl font-bold text-slate-800 tracking-tight">
-            Solo Travel Agent
+            Marco
           </span>
         </div>
 

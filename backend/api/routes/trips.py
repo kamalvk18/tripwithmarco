@@ -9,8 +9,12 @@ PUT    /trips/{trip_id}                  → overwrite an existing trip (owner o
 PATCH  /trips/{trip_id}                  → partial field update (owner or member)
 DELETE /trips/{trip_id}                  → delete a trip (owner only)
 
-POST   /trips/{trip_id}/expenses         → add an expense (owner or member)
-DELETE /trips/{trip_id}/expenses/{id}    → remove an expense (own or owner)
+POST   /trips/{trip_id}/expenses              → add an expense with optional paid_by + splits
+DELETE /trips/{trip_id}/expenses/{id}         → remove an expense (own or owner)
+
+POST   /trips/{trip_id}/settlements           → record a payment between members (from = current user)
+DELETE /trips/{trip_id}/settlements/{id}      → remove a settlement (own or owner)
+GET    /trips/{trip_id}/balances              → computed net balances across all members
 
 POST   /trips/{trip_id}/checklist        → generate checklist (owner or member)
 PATCH  /trips/{trip_id}/checklist/{id}   → toggle completed (owner or member)
@@ -49,6 +53,10 @@ from backend.api.schemas import (
     OkResponse,
     Expense,
     ExpenseCreate,
+    Settlement,
+    SettlementCreate,
+    BalanceEntry,
+    BalancesResponse,
     ChecklistItem,
     ChecklistResponse,
     InviteTokenResponse,
@@ -76,6 +84,53 @@ def _get_or_404(trip_id: str, user_id: int, member_ok: bool = True) -> dict:
 def _require_owner(trip: dict, user_id: int) -> None:
     if not trip.get("is_owner"):
         raise HTTPException(status_code=403, detail="Only the trip owner can do this")
+
+
+def _compute_balances(spending: list, settlements: list, members: list) -> list[dict]:
+    """Compute simplified net balances (minimum transactions) from expenses and settlements."""
+    name_map = {m["user_id"]: m["name"] for m in members}
+    net: dict[int, float] = {}
+
+    for expense in spending:
+        paid_by = expense.get("paid_by_user_id")
+        splits = expense.get("splits") or []
+        if not paid_by or not splits:
+            continue
+        for split in splits:
+            uid = split["user_id"]
+            amt = split["amount"]
+            if uid != paid_by:
+                net[paid_by] = net.get(paid_by, 0.0) + amt
+                net[uid] = net.get(uid, 0.0) - amt
+
+    for s in settlements:
+        net[s["to_user_id"]] = net.get(s["to_user_id"], 0.0) - s["amount"]
+        net[s["from_user_id"]] = net.get(s["from_user_id"], 0.0) + s["amount"]
+
+    creditors = sorted([(uid, amt) for uid, amt in net.items() if amt > 0.005], key=lambda x: -x[1])
+    debtors   = sorted([(uid, -amt) for uid, amt in net.items() if amt < -0.005], key=lambda x: -x[1])
+
+    balances, ci, di = [], 0, 0
+    creditors, debtors = list(creditors), list(debtors)
+    while ci < len(creditors) and di < len(debtors):
+        cuid, camt = creditors[ci]
+        duid, damt = debtors[di]
+        transfer = min(camt, damt)
+        balances.append({
+            "from_user_id": duid,
+            "from_name": name_map.get(duid, "Unknown"),
+            "to_user_id": cuid,
+            "to_name": name_map.get(cuid, "Unknown"),
+            "amount": round(transfer, 2),
+        })
+        creditors[ci] = (cuid, camt - transfer)
+        debtors[di]   = (duid, damt - transfer)
+        if creditors[ci][1] < 0.005:
+            ci += 1
+        if debtors[di][1] < 0.005:
+            di += 1
+
+    return balances
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -118,6 +173,9 @@ def remove_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
 @router.post("/{trip_id}/expenses", response_model=Expense, status_code=201)
 def add_expense(trip_id: str, body: ExpenseCreate, current_user: dict = Depends(get_current_user)):
     trip = _get_or_404(trip_id, current_user["id"], member_ok=True)
+    paid_by_id = body.paid_by_user_id or current_user["id"]
+    members = get_trip_members(trip_id)
+    paid_by_name = next((m["name"] for m in members if m["user_id"] == paid_by_id), current_user["name"])
     expense = Expense(
         id=str(uuid.uuid4()),
         category=body.category,
@@ -126,6 +184,9 @@ def add_expense(trip_id: str, body: ExpenseCreate, current_user: dict = Depends(
         date=body.date or date.today().isoformat(),
         added_by_user_id=current_user["id"],
         added_by_name=current_user["name"],
+        paid_by_user_id=paid_by_id,
+        paid_by_name=paid_by_name,
+        splits=[s.model_dump() for s in body.splits],
     )
     spending = trip.get("spending") or []
     spending.append(expense.model_dump())
@@ -147,6 +208,54 @@ def remove_expense(trip_id: str, expense_id: str, current_user: dict = Depends(g
     trip["spending"] = [e for e in spending if e.get("id") != expense_id]
     update_trip(trip_id, trip, current_user["id"], member_ok=True)
     return OkResponse()
+
+
+# ── Settlements ───────────────────────────────────────────────────────────────
+
+@router.post("/{trip_id}/settlements", response_model=Settlement, status_code=201)
+def add_settlement(trip_id: str, body: SettlementCreate, current_user: dict = Depends(get_current_user)):
+    trip = _get_or_404(trip_id, current_user["id"], member_ok=True)
+    members = get_trip_members(trip_id)
+    to_name = next((m["name"] for m in members if m["user_id"] == body.to_user_id), None)
+    if to_name is None:
+        raise HTTPException(status_code=400, detail="to_user_id is not a trip member")
+    settlement = Settlement(
+        id=str(uuid.uuid4()),
+        from_user_id=current_user["id"],
+        from_name=current_user["name"],
+        to_user_id=body.to_user_id,
+        to_name=to_name,
+        amount=body.amount,
+        date=body.date or date.today().isoformat(),
+        note=body.note,
+    )
+    settlements = trip.get("settlements") or []
+    settlements.append(settlement.model_dump())
+    trip["settlements"] = settlements
+    update_trip(trip_id, trip, current_user["id"], member_ok=True)
+    return settlement
+
+
+@router.delete("/{trip_id}/settlements/{settlement_id}", response_model=OkResponse)
+def remove_settlement(trip_id: str, settlement_id: str, current_user: dict = Depends(get_current_user)):
+    trip = _get_or_404(trip_id, current_user["id"], member_ok=True)
+    settlements = trip.get("settlements") or []
+    target = next((s for s in settlements if s.get("id") == settlement_id), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Settlement not found")
+    if not trip.get("is_owner") and target.get("from_user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="You can only delete your own settlements")
+    trip["settlements"] = [s for s in settlements if s.get("id") != settlement_id]
+    update_trip(trip_id, trip, current_user["id"], member_ok=True)
+    return OkResponse()
+
+
+@router.get("/{trip_id}/balances", response_model=BalancesResponse)
+def get_balances(trip_id: str, current_user: dict = Depends(get_current_user)):
+    trip = _get_or_404(trip_id, current_user["id"], member_ok=True)
+    members = get_trip_members(trip_id)
+    balances = _compute_balances(trip.get("spending") or [], trip.get("settlements") or [], members)
+    return BalancesResponse(balances=[BalanceEntry(**b) for b in balances])
 
 
 # ── Checklist ─────────────────────────────────────────────────────────────────
@@ -192,9 +301,9 @@ def toggle_checklist_item(
 
 _PATCHABLE_ALL = {
     "day_overrides", "currency", "notes", "near_me_response",
-    "email_config", "spending", "checklist",
+    "email_config", "spending", "settlements", "checklist",
 }
-_PATCHABLE_MEMBER = {"day_overrides", "near_me_response", "spending", "checklist"}
+_PATCHABLE_MEMBER = {"day_overrides", "near_me_response", "spending", "settlements", "checklist"}
 
 
 @router.patch("/{trip_id}", response_model=OkResponse)

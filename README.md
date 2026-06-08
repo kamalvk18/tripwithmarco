@@ -9,7 +9,7 @@ AI-powered travel planning app built around **Marco** — an opinionated travel 
 - **Conversational planning** — natural language trip form; Marco autonomously searches flights, hotels, weather, and local spots during planning
 - **Companion mode** — weather-aware daily advice once the trip is active; auto-rebuilds today's plan around bad weather
 - **Near Me** — geolocation-based activity suggestions from today's itinerary
-- **Expense tracker** — log real spending vs. Marco's estimates per category
+- **Expense splitting** — Splitwise-style group expense tracking: log who paid, split equally or among selected members, see live per-member balances, and record settlements — no separate app needed
 - **Pre-trip checklist** — auto-generated visa, health, documents, and kit list
 - **Post-trip debrief** — Marco reviews the full conversation and extracts travel preference signals for future planning
 - **Daily briefing email** — morning email each trip day with weather, today's plan, and remaining budget

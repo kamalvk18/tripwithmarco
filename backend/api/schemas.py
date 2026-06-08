@@ -71,6 +71,7 @@ class TripDetail(BaseModel):
     budget_breakdown: dict[str, Any] | None = None
     day_overrides: dict[str, Any] = Field(default_factory=dict)
     spending: list[dict[str, Any]] = Field(default_factory=list)
+    settlements: list[dict[str, Any]] = Field(default_factory=list)
     checklist: list[dict[str, Any]] = Field(default_factory=list)
     email_config: dict[str, Any] = Field(default_factory=dict)
     messages: list[Message] = Field(default_factory=list)
@@ -98,12 +99,22 @@ class OkResponse(BaseModel):
 
 EXPENSE_CATEGORIES = ["flights", "accommodation", "food", "activities", "transport", "misc"]
 
+
+class ExpenseSplit(BaseModel):
+    """One member's share of an expense."""
+    user_id: int
+    name: str = ""
+    amount: float
+
+
 class ExpenseCreate(BaseModel):
     """Body for POST /trips/{trip_id}/expenses."""
     category: str
     amount: float
     description: str = ""
     date: str = ""          # ISO date string, defaults to today on server
+    paid_by_user_id: int | None = None   # defaults to current user
+    splits: list[ExpenseSplit] = Field(default_factory=list)
 
 
 class Expense(BaseModel):
@@ -115,6 +126,43 @@ class Expense(BaseModel):
     date: str = ""
     added_by_user_id: int | None = None   # who logged this expense
     added_by_name: str = ""               # display name of the logger
+    paid_by_user_id: int | None = None    # who actually paid
+    paid_by_name: str = ""
+    splits: list[ExpenseSplit] = Field(default_factory=list)
+
+
+# ── Settlements ───────────────────────────────────────────────────────────────
+
+class SettlementCreate(BaseModel):
+    """Body for POST /trips/{trip_id}/settlements — current user pays to_user_id."""
+    to_user_id: int
+    amount: float
+    note: str = ""
+    date: str = ""
+
+
+class Settlement(BaseModel):
+    """A recorded payment between two trip members."""
+    id: str
+    from_user_id: int
+    from_name: str = ""
+    to_user_id: int
+    to_name: str = ""
+    amount: float
+    date: str = ""
+    note: str = ""
+
+
+class BalanceEntry(BaseModel):
+    from_user_id: int
+    from_name: str
+    to_user_id: int
+    to_name: str
+    amount: float
+
+
+class BalancesResponse(BaseModel):
+    balances: list[BalanceEntry]
 
 
 # ── Checklist ────────────────────────────────────────────────────────────────

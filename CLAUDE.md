@@ -48,6 +48,9 @@ The destination and origin fields in the trip form are plain text inputs — no 
 ### Persistence
 Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db` on a persistent volume). Each row holds indexed summary columns plus a full JSON blob of the trip. The `messages` array inside the blob is the full conversation history — the trip record IS the conversation. `trip_store.py` is the only entry point; no other module touches the DB directly. To swap to Postgres, set `DATABASE_URL=postgresql://...`.
 
+### Expense Splitting (Splitwise-style)
+Expenses have three extra fields beyond category/amount/date: `paid_by_user_id`, `paid_by_name`, and `splits` (array of `{user_id, name, amount}`). Settlements are stored as a separate `settlements` array in the same trip JSON blob — no new DB table. Balances are computed on the fly (both server-side via `GET /trips/{id}/balances` and client-side in `ExpenseTracker.jsx:computeBalances()`) using a greedy simplification algorithm that minimises the number of transactions. Old expenses without `splits` are ignored in balance calculations — fully backward-compatible.
+
 ### Tool Result Caching
 `backend/tools/cache.py` caches SerpApi and OpenWeather HTTP responses to disk. TTLs: weather 1h, flights/hotels 6h, places 24h. This only skips external API calls — Claude inference still runs on every request.
 
@@ -70,8 +73,8 @@ Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db`
 | `backend/db/trip_store.py` | save/load/list/update/delete + JSON migration |
 | `backend/prompts/marco.md` | Marco's system prompt — personality, modes, tool usage rules (including: do not retry failed tool calls) |
 | `backend/api/app.py` | FastAPI app factory, auth middleware, CORS, route registration |
-| `backend/api/schemas.py` | Pydantic request/response models |
-| `backend/api/routes/trips.py` | Trip CRUD endpoints |
+| `backend/api/schemas.py` | Pydantic request/response models — includes `Expense`, `ExpenseSplit`, `Settlement`, `BalancesResponse` |
+| `backend/api/routes/trips.py` | Trip CRUD + expense, settlement, and balances endpoints |
 | `backend/api/routes/chat.py` | SSE streaming + sync chat endpoints |
 | `tests/test_planning_agent.py` | Unit tests for extract_all_days, get_trip_day, etc. |
 | `tests/test_tools.py` | Unit tests for parse/format functions in all 4 tool modules |

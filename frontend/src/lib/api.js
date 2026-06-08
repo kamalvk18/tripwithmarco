@@ -226,6 +226,23 @@ export async function leaveTrip(tripId) {
   return res.ok
 }
 
+// ── Settlements ──────────────────────────────────────────────────────────────
+
+export async function addSettlement(tripId, { to_user_id, amount, note = '', date = '' }) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/settlements`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to_user_id, amount, note, date }),
+  })
+  if (!res.ok) throw new Error('Failed to record settlement')
+  return res.json()
+}
+
+export async function deleteSettlement(tripId, settlementId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/settlements/${settlementId}`, { method: 'DELETE' })
+  return res.ok
+}
+
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 export async function fetchAdminStats() {

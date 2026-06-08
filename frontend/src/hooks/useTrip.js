@@ -163,9 +163,14 @@ export function useTrip(id) {
 
       return patch(updates)
     },
-    // Expense endpoints already persist to DB — only sync local state here.
+    // Expense/settlement endpoints already persist to DB — only sync local state here.
     updateSpending: spending => {
       const next = { ...tripData, spending }
+      tripCache.set(id, next)
+      setTripData(next)
+    },
+    updateSettlements: settlements => {
+      const next = { ...tripData, settlements }
       tripCache.set(id, next)
       setTripData(next)
     },

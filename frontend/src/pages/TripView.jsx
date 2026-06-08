@@ -35,7 +35,7 @@ export default function TripView() {
     tripData, loading,
     messages, days,
     status, label, dayNum,
-    saveMessages, updateSpending, updateChecklist, updateEmailConfig,
+    saveMessages, updateSpending, updateSettlements, updateChecklist, updateEmailConfig,
     updateDayOverride, updateDebrief, updateNearMe, getCachedNearMeResponse, remove,
     updateMembers,
   } = useTrip(id)
@@ -429,11 +429,14 @@ export default function TripView() {
           <ExpenseTracker
             tripId={id}
             spending={tripData.spending ?? []}
+            settlements={tripData.settlements ?? []}
             breakdown={tripData.budget_breakdown ?? {}}
             currency={tripData.currency ?? 'EUR'}
             currentUserId={user?.id}
             isOwner={isOwner}
+            members={tripData.members ?? []}
             onUpdate={updateSpending}
+            onSettlementsUpdate={updateSettlements}
           />
         </div>
       )}

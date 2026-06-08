@@ -47,6 +47,52 @@ def load_prompt(filename: str) -> str:
 
 SYSTEM_PROMPT = load_prompt("marco.md")
 
+# Static system prompts for Haiku extraction calls — defined at module level so
+# the same string object is reused across requests, maximising cache hit rate.
+_EXTRACT_TRIP_SYSTEM = """Extract trip details from a travel planning conversation.
+Return ONLY a JSON object with these exact fields:
+- destination: descriptive trip name (e.g. "Kraków, Poland", "Austrian Alps")
+- city: main city for weather lookup (e.g. "Kraków", "Salzburg")
+- country_code: 2-letter ISO code (e.g. "PL", "AT", "ES")
+- start_date: YYYY-MM-DD format, or "" if not mentioned
+- end_date: YYYY-MM-DD format, or "" if not mentioned
+- budget: the user's most recently stated budget as a plain number (e.g. 35000), or null if not mentioned. Use the LATEST value if the user updated it.
+
+No markdown, no explanation. JSON object only."""
+
+_CHECKLIST_SYSTEM = """You are a pre-trip checklist generator for solo travellers.
+
+CRITICAL CONTEXT RULES — apply these before generating any item:
+1. DOMESTIC TRAVEL: If the destination country matches the passport/citizenship country (e.g. Indian citizen → Ladakh/India, US citizen → New York, etc.) this is a DOMESTIC trip. For domestic travel:
+   - Do NOT include visa items (no visa needed for domestic travel)
+   - Do NOT suggest getting a local SIM card (they already have one)
+   - Do NOT suggest exchanging currency (they already have local currency)
+   - Do NOT mention passport validity for domestic travel (passport not required)
+   - Do NOT suggest emergency copies of passport for simple domestic trips
+   - Focus instead on: health precautions specific to the region, insurance, offline maps, region-specific kit
+2. INTERNATIONAL TRAVEL: Include visa, passport validity, SIM card, currency, and entry requirement items.
+3. ALTITUDE / TERRAIN: For high-altitude destinations (e.g. Ladakh, Tibet, Nepal, Andes, Alps) always include altitude sickness prevention as HIGH priority.
+4. Be intelligent — don't generate boilerplate that doesn't apply. Each item must be genuinely useful for this specific traveller.
+
+Return ONLY valid JSON — an array of objects, no prose, no markdown fences:
+[
+  {"category": "health", "item": "Consult doctor about altitude sickness medication", "priority": "high"}
+]
+
+Categories (only include relevant ones):
+- visa: entry requirements, e-visa, on-arrival (SKIP for domestic travel)
+- health: vaccinations, altitude sickness, medication, travel clinic
+- insurance: travel insurance, medical evacuation cover
+- documents: passport validity (international only), copies of essential docs, emergency contacts
+- kit: power adaptor, offline maps, gear specific to destination climate/terrain
+
+Keep each item under 12 words. Return 8-15 items total.
+Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any other value."""
+
+_PREFERENCES_SYSTEM = """Extract 3-6 specific travel preference signals from the post-trip debrief provided.
+Each signal should be a short, concrete statement (under 10 words) about the traveller's likes, dislikes, or patterns — things that should inform future trip planning.
+Return ONLY a JSON array of strings. Example: ["Prefers local food markets over sit-down restaurants", "Dislikes crowded tourist sites", "Loves half-day hikes with a view"]"""
+
 _INJECT_RE = re.compile(r"(##\s|ignore\s|system\s*prompt|<\s*/?system|instruction)", re.IGNORECASE)
 
 def _safe_str(value: str, max_len: int = 200) -> str:
@@ -71,16 +117,7 @@ def extract_trip_details(messages: list) -> dict:
         response = client.messages.create(
             model=HAIKU_MODEL,
             max_tokens=EXTRACTION_MAX_TOKENS,
-            system="""Extract trip details from a travel planning conversation.
-Return ONLY a JSON object with these exact fields:
-- destination: descriptive trip name (e.g. "Kraków, Poland", "Austrian Alps")
-- city: main city for weather lookup (e.g. "Kraków", "Salzburg")
-- country_code: 2-letter ISO code (e.g. "PL", "AT", "ES")
-- start_date: YYYY-MM-DD format, or "" if not mentioned
-- end_date: YYYY-MM-DD format, or "" if not mentioned
-- budget: the user's most recently stated budget as a plain number (e.g. 35000), or null if not mentioned. Use the LATEST value if the user updated it.
-
-No markdown, no explanation. JSON object only.""",
+            system=[{"type": "text", "text": _EXTRACT_TRIP_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=[
                 {"role": "user", "content": f"Extract trip details:\n\n{conversation}"}
             ]
@@ -160,6 +197,7 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
             },
             "required": ["days", "budget_breakdown"],
         },
+        "cache_control": {"type": "ephemeral"},
     }
 
     try:
@@ -168,11 +206,15 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
             max_tokens=8096,
             tools=[_tool],
             tool_choice={"type": "tool", "name": "save_itinerary"},
-            system=(
-                f"You are a travel itinerary parser. "
-                f"Extract every day section and the budget estimate (in {currency}) "
-                f"from the itinerary below. Preserve the full content for each day."
-            ),
+            system=[{
+                "type": "text",
+                "text": (
+                    f"You are a travel itinerary parser. "
+                    f"Extract every day section and the budget estimate (in {currency}) "
+                    f"from the itinerary below. Preserve the full content for each day."
+                ),
+                "cache_control": {"type": "ephemeral"},
+            }],
             messages=[{"role": "user", "content": itinerary[:8000]}],
         )
         _log_claude_usage(HAIKU_MODEL, response.usage)
@@ -467,40 +509,6 @@ def generate_checklist(destination: str, passport_country: str, start_date: str)
     Categories: visa, health, insurance, documents, kit
     Priorities: high | normal | low
     """
-    prompt = f"""Generate a concise, context-aware pre-trip checklist for a solo traveller.
-
-Destination: {destination}
-Passport / citizenship country: {passport_country or "not specified"}
-Departure date: {start_date or "soon"}
-
-CRITICAL CONTEXT RULES — apply these before generating any item:
-1. DOMESTIC TRAVEL: If the destination country matches the passport/citizenship country (e.g. Indian citizen → Ladakh/India, US citizen → New York, etc.) this is a DOMESTIC trip. For domestic travel:
-   - Do NOT include visa items (no visa needed for domestic travel)
-   - Do NOT suggest getting a local SIM card (they already have one)
-   - Do NOT suggest exchanging currency (they already have local currency)
-   - Do NOT mention passport validity for domestic travel (passport not required)
-   - Do NOT suggest emergency copies of passport for simple domestic trips
-   - Focus instead on: health precautions specific to the region, insurance, offline maps, region-specific kit
-2. INTERNATIONAL TRAVEL: Include visa, passport validity, SIM card, currency, and entry requirement items.
-3. ALTITUDE / TERRAIN: For high-altitude destinations (e.g. Ladakh, Tibet, Nepal, Andes, Alps) always include altitude sickness prevention as HIGH priority.
-4. Be intelligent — don't generate boilerplate that doesn't apply. Each item must be genuinely useful for this specific traveller.
-
-Return ONLY valid JSON — an array of objects, no prose, no markdown fences:
-[
-  {{"category": "health", "item": "Consult doctor about altitude sickness medication", "priority": "high"}},
-  ...
-]
-
-Categories (only include relevant ones):
-- visa: entry requirements, e-visa, on-arrival (SKIP for domestic travel)
-- health: vaccinations, altitude sickness, medication, travel clinic
-- insurance: travel insurance, medical evacuation cover
-- documents: passport validity (international only), copies of essential docs, emergency contacts
-- kit: power adaptor, offline maps, gear specific to destination climate/terrain
-
-Keep each item under 12 words. Return 8-15 items total.
-Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any other value."""
-
     # Normalise any non-standard priority Haiku might return
     _PRIORITY_MAP = {"high": "high", "normal": "normal", "low": "low",
                      "medium": "normal", "moderate": "normal", "critical": "high"}
@@ -509,7 +517,13 @@ Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any oth
         response = client.messages.create(
             model=HAIKU_MODEL,
             max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
+            system=[{"type": "text", "text": _CHECKLIST_SYSTEM, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": (
+                f"Generate a pre-trip checklist for:\n\n"
+                f"Destination: {destination}\n"
+                f"Passport / citizenship country: {passport_country or 'not specified'}\n"
+                f"Departure date: {start_date or 'soon'}"
+            )}],
         )
         _log_claude_usage(HAIKU_MODEL, response.usage)
         raw = response.content[0].text.strip()
@@ -559,19 +573,8 @@ def extract_preferences(debrief_text: str) -> list[str]:
         response = client.messages.create(
             model=HAIKU_MODEL,
             max_tokens=256,
-            messages=[{
-                "role": "user",
-                "content": (
-                    "Extract 3-6 specific travel preference signals from this post-trip debrief. "
-                    "Each should be a short, concrete statement (under 10 words) about the traveller's likes, "
-                    "dislikes, or patterns — things that should inform future trip planning.\n"
-                    'Return ONLY a JSON array of strings. Example: '
-                    '["Prefers local food markets over sit-down restaurants", '
-                    '"Dislikes crowded tourist sites", '
-                    '"Loves half-day hikes with a view"]\n\n'
-                    f"Debrief:\n{debrief_text}"
-                ),
-            }],
+            system=[{"type": "text", "text": _PREFERENCES_SYSTEM, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": debrief_text}],
         )
         _log_claude_usage(HAIKU_MODEL, response.usage)
         raw = response.content[0].text.strip()

@@ -1,11 +1,18 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 body {
   margin: 0;
   background-color: #f1f5f9;
   color: #1e293b;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
 
 #root {
@@ -19,6 +26,10 @@ body {
 ::-webkit-scrollbar-track { background: #f1f5f9; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.dark ::-webkit-scrollbar-track { background: #1e293b; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 /* Markdown / prose styles */
 .prose { color: #334155; }
@@ -35,6 +46,18 @@ body {
 .prose td { padding: 5px 12px; border: 1px solid #e2e8f0; color: #334155; }
 .prose tr:nth-child(even) td { background: #f8fafc; }
 .prose p { margin: 0.5em 0; line-height: 1.7; }
+
+/* Dark mode prose */
+.dark .prose { color: #cbd5e1; }
+.dark .prose h1, .dark .prose h2, .dark .prose h3 { color: #f1f5f9; }
+.dark .prose strong { color: #f1f5f9; }
+.dark .prose a { color: #818cf8; }
+.dark .prose code { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+.dark .prose pre { background: #1e293b; border-color: #334155; }
+.dark .prose hr { border-color: #334155; }
+.dark .prose th { background: #1e293b; color: #f1f5f9; border-color: #334155; }
+.dark .prose td { border-color: #334155; color: #cbd5e1; }
+.dark .prose tr:nth-child(even) td { background: #1e293b; }
 
 /* Streaming cursor */
 .streaming-cursor::after {

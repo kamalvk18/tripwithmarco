@@ -9,7 +9,7 @@ Vite + React 19 + Tailwind CSS v4 single-page application. Communicates exclusiv
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (proxies /api → http://localhost:8000)
-npm run build      # outputs to dist/ (served by FastAPI in production)
+npm run build      # outputs to dist/ (deployed to Vercel in production)
 npm run lint
 npm run preview    # preview the production build locally
 ```
@@ -31,20 +31,30 @@ src/
 ├── pages/
 │   ├── Home.jsx               # Trip list with status badges
 │   ├── PlanTrip.jsx           # Trip planning form + streaming SSE chat
-│   └── TripView.jsx           # Full trip view — all panels assembled here
+│   ├── TripView.jsx           # Full trip view — all panels assembled here
+│   ├── Login.jsx              # Google OAuth sign-in page
+│   ├── AuthCallback.jsx       # OAuth redirect handler
+│   ├── JoinTrip.jsx           # Group trip invite acceptance
+│   └── AdminDashboard.jsx     # Admin stats (admin users only)
 ├── components/
 │   ├── ChatPanel.jsx          # Collapsible "Ask Marco" / companion chat
 │   ├── DayCard.jsx            # Single trip day (expandable, override badge)
 │   ├── BudgetPanel.jsx        # Budget breakdown vs. estimate
-│   ├── ExpenseTracker.jsx     # Real-spending log with per-category tracking
+│   ├── ExpenseTracker.jsx     # Real-spending log with per-category tracking and group splits
 │   ├── ChecklistPanel.jsx     # Auto-generated pre-trip checklist
 │   ├── EmailBriefingConfig.jsx # Daily briefing email configuration
-│   ├── Layout.jsx             # Page shell (nav, max-width container)
+│   ├── SharePanel.jsx         # Trip sharing — invite links and member management
+│   ├── TripMap.jsx            # Leaflet map of today's itinerary locations
+│   ├── Layout.jsx             # Page shell (nav, sidebar, max-width container)
+│   ├── ProtectedRoute.jsx     # Auth guard — redirects unauthenticated users to /login
 │   └── ui/
 │       ├── Badge.jsx          # Status badge (upcoming / active / past)
 │       ├── Button.jsx         # Primary / secondary / ghost variants
 │       ├── Card.jsx           # Surface card
 │       └── Spinner.jsx        # Inline loading spinner
+├── contexts/
+│   ├── AuthContext.jsx        # JWT token storage, current user, login/logout helpers
+│   └── ThemeContext.jsx       # Light/dark theme preference
 ├── hooks/
 │   ├── useSSEChat.js          # SSE streaming state + tool-status messages
 │   └── useWeatherCache.js     # Module-level 1-hour weather cache
@@ -103,23 +113,39 @@ content: tripData.day_overrides?.[String(day.num)] ?? day.content
 
 | Method | Path | Used by |
 |---|---|---|
+| `GET` | `/api/auth/me` | `AuthContext` |
+| `GET` | `/api/auth/google/login` | `Login` |
 | `GET` | `/api/trips` | `Home` |
 | `GET` | `/api/trips/:id` | `TripView` |
 | `POST` | `/api/trips` | `PlanTrip` (save) |
-| `PUT` | `/api/trips/:id` | `ChatPanel`, `TripView` (update) |
+| `PUT` | `/api/trips/:id` | `ChatPanel`, `TripView` (full update) |
+| `PATCH` | `/api/trips/:id` | `TripView` (partial update) |
 | `DELETE` | `/api/trips/:id` | `TripView` |
 | `POST` | `/api/chat/stream` | `useSSEChat` |
 | `POST` | `/api/chat/extract` | `PlanTrip` |
 | `GET` | `/api/chat/weather` | `useWeatherCache` |
 | `POST` | `/api/trips/:id/expenses` | `ExpenseTracker` |
 | `DELETE` | `/api/trips/:id/expenses/:eid` | `ExpenseTracker` |
+| `POST` | `/api/trips/:id/settlements` | `ExpenseTracker` |
+| `DELETE` | `/api/trips/:id/settlements/:sid` | `ExpenseTracker` |
+| `GET` | `/api/trips/:id/balances` | `ExpenseTracker` |
 | `POST` | `/api/trips/:id/checklist` | `ChecklistPanel` |
-| `PUT` | `/api/trips/:id/checklist` | `ChecklistPanel` |
-| `POST` | `/api/trips/:id}/email-config` | `EmailBriefingConfig` |
+| `PATCH` | `/api/trips/:id/checklist/:item_id` | `ChecklistPanel` |
+| `POST` | `/api/trips/:id/debrief` | `TripView` |
+| `POST` | `/api/trips/:id/email-config` | `EmailBriefingConfig` |
 | `POST` | `/api/trips/:id/send-briefing` | `EmailBriefingConfig` |
+| `GET` | `/api/trips/invite/:token` | `JoinTrip` |
+| `POST` | `/api/trips/:id/invite` | `SharePanel` |
+| `POST` | `/api/trips/:id/invite/regenerate` | `SharePanel` |
+| `DELETE` | `/api/trips/:id/invite` | `SharePanel` |
+| `POST` | `/api/trips/join/:token` | `JoinTrip` |
+| `GET` | `/api/trips/:id/members` | `SharePanel` |
+| `DELETE` | `/api/trips/:id/members/:uid` | `SharePanel` |
+| `DELETE` | `/api/trips/:id/leave` | `TripView` |
+| `GET` | `/api/admin/stats` | `AdminDashboard` |
 
 ---
 
 ## Vite Proxy
 
-`vite.config.js` proxies `/api` and `/health` to `http://localhost:8000` in dev so you don't need CORS headers locally. In production, FastAPI serves the built `dist/` directly and handles all routes itself.
+`vite.config.js` proxies `/api` and `/health` to `http://localhost:8000` in dev so you don't need CORS headers locally. In production, the frontend is deployed to Vercel and `VITE_API_URL` must be set to the Render backend URL.

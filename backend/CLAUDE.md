@@ -8,6 +8,7 @@ backend/
 ├── tools/          # External API integrations
 ├── db/             # Trip persistence
 ├── prompts/        # System prompts
+├── email/          # Daily briefing email (Resend)
 └── api/            # FastAPI routes
 ```
 
@@ -65,6 +66,39 @@ Two-step: geocode city via OpenWeather Geo API, then fetch 5-day/3-hour forecast
 - Trip IDs are timestamp strings (`20260516_225345`). The `messages` field inside the blob is the full conversation history.
 - `update_trip()` rewrites the JSON blob and syncs the indexed columns. No partial updates at the DB layer — callers load, mutate, then call `update_trip()`.
 - On startup, `migrate_from_json()` imports any legacy `.json` files found in `TRIPS_DIR` and renames them to `.json.migrated`.
+- Group trips have a `TripMember` table linking `trip_id` + `user_id` with a `role` (`owner` / `member`). Invite tokens are stored in the `Trip` JSON blob.
+
+## Email
+
+`email/briefing.py` — generates and sends the daily morning briefing via Resend. Called by `email/scheduler.py` (APScheduler, fires at 06:00 local time per trip). The `/api/send-briefings` endpoint can also trigger it manually (protected by `CRON_SECRET`).
+
+Sender address is read from `RESEND_FROM` env var (default: `Marco <marco@marco.app>`).
+
+## API Routes
+
+### auth.py — `/api/auth`
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/google/login-url` | Returns the Google OAuth redirect URL |
+| `GET` | `/google/login` | Redirects browser to Google OAuth |
+| `GET` | `/google/callback` | Handles OAuth callback, issues JWT |
+| `GET` | `/me` | Returns the current user from the JWT |
+
+### trips.py — `/api/trips`
+Standard CRUD plus expenses, settlements, balances, checklist, debrief, email config, and sharing/invite endpoints. See `routes/trips.py` for the full list.
+
+### chat.py — `/api/chat`
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/stream` | SSE streaming chat |
+| `POST` | `` | Sync chat (non-streaming) |
+| `GET` | `/weather` | Live weather for a city |
+| `POST` | `/extract` | Haiku extraction of trip metadata |
+
+### admin.py — `/api/admin`
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/stats` | User and trip counts (admin only) |
 
 ## Prompts
 

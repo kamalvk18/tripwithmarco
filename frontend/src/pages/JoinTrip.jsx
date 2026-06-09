@@ -36,14 +36,13 @@ export default function JoinTrip() {
   }
 
   function handleLoginToJoin() {
-    // Save the join URL so we can resume after login
     localStorage.setItem('sta_pending_join', `/join/${token}`)
     navigate('/login')
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <Spinner className="w-6 h-6 text-indigo-500" />
       </div>
     )
@@ -51,13 +50,13 @@ export default function JoinTrip() {
 
   if (!preview) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="max-w-sm w-full bg-white rounded-2xl border border-slate-200 shadow-md p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+        <div className="max-w-sm w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🔗</span>
           </div>
-          <h2 className="text-lg font-bold text-slate-800 mb-2">Link not found</h2>
-          <p className="text-sm text-slate-500 mb-6">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Link not found</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
             This invite link may have expired or been revoked by the trip owner.
           </p>
           <Button variant="primary" onClick={() => navigate('/')}>Go Home</Button>
@@ -67,21 +66,21 @@ export default function JoinTrip() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="max-w-sm w-full bg-white rounded-2xl border border-slate-200 shadow-md p-8">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="max-w-sm w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-8">
         {/* Trip card */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shrink-0">
             <Globe className="text-white" size={22} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{preview.destination}</h1>
-            <p className="text-sm text-slate-500">{preview.dates}</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-50">{preview.destination}</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{preview.dates}</p>
           </div>
         </div>
 
         {/* Owner info */}
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 mb-6">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 mb-6">
           {preview.owner_picture ? (
             <img
               src={preview.owner_picture}
@@ -89,23 +88,23 @@ export default function JoinTrip() {
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 font-bold text-sm">
+            <div className="w-8 h-8 rounded-full bg-indigo-200 dark:bg-indigo-800 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-sm">
               {preview.owner_name?.[0]?.toUpperCase() ?? '?'}
             </div>
           )}
-          <p className="text-sm text-slate-600">
-            <span className="font-medium text-slate-800">{preview.owner_name}</span> invited you to join this trip
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-medium text-slate-800 dark:text-slate-100">{preview.owner_name}</span> invited you to join this trip
           </p>
         </div>
 
         {/* Budget note */}
-        <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6">
-          <Users size={13} className="text-amber-600 shrink-0" />
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 mb-6">
+          <Users size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
           <span>Budget is per person — you'll track your own expenses separately.</span>
         </div>
 
         {error && (
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+          <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2 mb-4">
             {error}
           </div>
         )}
@@ -121,7 +120,7 @@ export default function JoinTrip() {
           </Button>
         ) : (
           <>
-            <p className="text-xs text-slate-500 text-center mb-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-3">
               Sign in with Google to join this trip.
             </p>
             <Button

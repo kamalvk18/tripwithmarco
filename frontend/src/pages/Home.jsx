@@ -11,8 +11,8 @@ const STATUS_ICON   = { upcoming: '🗓️', active: '✈️', past: '✅', unkn
 const STATUS_BORDER = {
   upcoming: 'border-l-blue-400',
   active:   'border-l-emerald-500',
-  past:     'border-l-slate-300',
-  unknown:  'border-l-slate-300',
+  past:     'border-l-slate-300 dark:border-l-slate-600',
+  unknown:  'border-l-slate-300 dark:border-l-slate-600',
 }
 
 function TripCard({ trip, onDelete, deleting }) {
@@ -22,7 +22,7 @@ function TripCard({ trip, onDelete, deleting }) {
     <div
       onClick={() => navigate(`/trips/${trip.trip_id}`)}
       className={cn(
-        'group cursor-pointer rounded-xl border border-slate-200 border-l-4 bg-white',
+        'group cursor-pointer rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 bg-white dark:bg-slate-900',
         'shadow-sm hover:shadow-md transition-all duration-200',
         STATUS_BORDER[status] ?? STATUS_BORDER.unknown,
       )}
@@ -31,15 +31,15 @@ function TripCard({ trip, onDelete, deleting }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">{STATUS_ICON[status]}</span>
-            <h2 className="text-base font-bold text-slate-800 truncate">
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">
               {trip.destination}
             </h2>
           </div>
-          <p className="text-sm text-slate-500 ml-8">{trip.dates}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 ml-8">{trip.dates}</p>
           <div className="mt-2 ml-8 flex items-center gap-2 flex-wrap">
             <Badge variant={status}>{label}</Badge>
             {trip.is_member && trip.owner_name && (
-              <span className="text-xs text-slate-400 flex items-center gap-1">
+              <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
                 <Users size={11} /> {trip.owner_name}'s trip
               </span>
             )}
@@ -51,7 +51,7 @@ function TripCard({ trip, onDelete, deleting }) {
               onClick={(e) => { e.stopPropagation(); onDelete(trip.trip_id) }}
               disabled={deleting === trip.trip_id}
               className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg
-                text-slate-400 hover:text-red-500 hover:bg-red-50 cursor-pointer"
+                text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer"
               title="Delete trip"
             >
               <Trash2 size={15} />
@@ -59,7 +59,7 @@ function TripCard({ trip, onDelete, deleting }) {
           )}
           <ChevronRight
             size={18}
-            className="text-slate-300 group-hover:text-indigo-500 transition-colors"
+            className="text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors"
           />
         </div>
       </div>
@@ -105,8 +105,8 @@ export default function Home() {
             <Globe className="text-white" size={20} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Hey, where to next?</h1>
-            <p className="text-slate-500 text-sm">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Hey, where to next?</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">
               Marco will plan your trip, find flights and hotels, and guide you every day.
             </p>
           </div>
@@ -125,20 +125,20 @@ export default function Home() {
       {loading && (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-24 rounded-xl bg-white border border-slate-200 shadow-sm animate-pulse" />
+            <div key={i} className="h-24 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm animate-pulse" />
           ))}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && trips.length === 0 && (
-        <div className="flex flex-col items-center gap-4 py-20 bg-white rounded-2xl border border-slate-200 shadow-sm text-center">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-            <Map size={28} className="text-slate-400" />
+        <div className="flex flex-col items-center gap-4 py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            <Map size={28} className="text-slate-400 dark:text-slate-500" />
           </div>
           <div>
-            <p className="text-slate-700 font-medium">No trips yet</p>
-            <p className="text-slate-400 text-sm mt-1">Plan your first adventure with Marco!</p>
+            <p className="text-slate-700 dark:text-slate-200 font-medium">No trips yet</p>
+            <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Plan your first adventure with Marco!</p>
           </div>
           <Button variant="primary" onClick={() => navigate('/plan')}>
             <PlusCircle size={16} /> Plan your first trip
@@ -150,7 +150,7 @@ export default function Home() {
       {!loading && myTrips.length > 0 && (
         <div className="mb-8">
           {sharedTrips.length > 0 && (
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
               My Trips
             </h2>
           )}
@@ -170,7 +170,7 @@ export default function Home() {
       {/* Shared trips */}
       {!loading && sharedTrips.length > 0 && (
         <div>
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <Users size={13} /> Shared With Me
           </h2>
           <div className="grid gap-3">

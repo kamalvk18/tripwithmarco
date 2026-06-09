@@ -6,7 +6,7 @@ import { apiFetch } from '@/lib/api'
 
 const CAT_ICONS  = { visa: '🛂', health: '💉', insurance: '🛡️', documents: '📄', kit: '🎒' }
 const CAT_ORDER  = ['visa', 'health', 'insurance', 'documents', 'kit']
-const PRIORITY_CLASS = { high: 'text-red-600', normal: 'text-slate-700', low: 'text-slate-500' }
+const PRIORITY_CLASS = { high: 'text-red-600 dark:text-red-400', normal: 'text-slate-700 dark:text-slate-200', low: 'text-slate-500 dark:text-slate-400' }
 
 async function apiGenerate(tripId, passportCountry) {
   const params = passportCountry ? `?passport_country=${encodeURIComponent(passportCountry)}` : ''
@@ -66,34 +66,36 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
     return acc
   }, {})
 
+  const inputCls = "rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-400 shadow-sm"
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
       {/* Header */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer text-left hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
       >
         <div className="flex items-center gap-3">
           <ClipboardList size={16} className="text-indigo-600" />
-          <span className="text-sm font-semibold text-slate-700">Pre-Trip Checklist</span>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Pre-Trip Checklist</span>
           {total > 0 && (
-            <span className="text-xs text-slate-400">{done}/{total} done</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">{done}/{total} done</span>
           )}
         </div>
-        <ChevronDown size={15} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={15} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="border-t border-slate-100">
+        <div className="border-t border-slate-100 dark:border-slate-800">
           {items.length === 0 && !generating && (
             <div className="px-5 py-5 text-center">
               {error && (
-                <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600 text-left">
+                <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 text-left">
                   ⚠️ {error}
                 </div>
               )}
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                 Generate a personalised checklist: visa requirements, vaccinations,
                 insurance, documents and kit — specific to {destination}.
               </p>
@@ -104,8 +106,7 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
                     placeholder="Your passport country (e.g. UK)"
                     value={passport}
                     onChange={e => setPassport(e.target.value)}
-                    className="rounded-lg bg-white border border-slate-200 text-slate-800 px-3 py-2
-                      text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400 shadow-sm w-52"
+                    className={`${inputCls} w-52`}
                   />
                   <Button type="submit" variant="primary" size="sm">Generate</Button>
                 </form>
@@ -118,7 +119,7 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
           )}
 
           {generating && (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-indigo-600">
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-indigo-600 dark:text-indigo-400">
               <Spinner className="w-4 h-4" /> Marco is building your checklist…
             </div>
           )}
@@ -127,19 +128,19 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
             <>
               {/* Progress bar */}
               <div className="px-5 pt-4 pb-2">
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-indigo-500 transition-all"
                     style={{ width: total > 0 ? `${(done / total) * 100}%` : '0%' }}
                   />
                 </div>
-                <p className="text-xs text-slate-400 mt-1 text-right">{done} of {total} complete</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 text-right">{done} of {total} complete</p>
               </div>
 
               <div className="px-5 pb-4 space-y-4">
                 {Object.entries(grouped).map(([cat, catItems]) => (
                   <div key={cat}>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                       {CAT_ICONS[cat] ?? '📋'} {cat}
                     </p>
                     <div className="space-y-2">
@@ -156,8 +157,8 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
                           />
                           <span className={`text-sm leading-snug select-none transition-colors
                             ${item.completed
-                              ? 'line-through text-slate-300'
-                              : PRIORITY_CLASS[item.priority] ?? 'text-slate-700'}`}
+                              ? 'line-through text-slate-300 dark:text-slate-600'
+                              : PRIORITY_CLASS[item.priority] ?? 'text-slate-700 dark:text-slate-200'}`}
                           >
                             {item.priority === 'high' && !item.completed && (
                               <span className="text-red-500 mr-1">!</span>
@@ -176,7 +177,7 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
                 <button
                   type="button"
                   onClick={() => { setShowForm(true); setOpen(true) }}
-                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer transition-colors"
                 >
                   <RefreshCw size={11} /> Regenerate with different passport
                 </button>
@@ -187,8 +188,7 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
                       placeholder="Passport country"
                       value={passport}
                       onChange={e => setPassport(e.target.value)}
-                      className="rounded-lg bg-white border border-slate-200 text-slate-800 px-3 py-1.5
-                        text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400 shadow-sm flex-1"
+                      className={`${inputCls} flex-1`}
                     />
                     <Button type="submit" variant="primary" size="sm">Regenerate</Button>
                   </form>

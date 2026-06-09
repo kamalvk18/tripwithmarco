@@ -1,11 +1,11 @@
 import { cn } from '@/lib/utils'
 
 const variants = {
-  upcoming: 'bg-blue-100 text-blue-700 border-blue-200',
-  active:   'bg-emerald-100 text-emerald-700 border-emerald-200',
-  past:     'bg-slate-100 text-slate-500 border-slate-200',
-  rebuilt:  'bg-indigo-100 text-indigo-700 border-indigo-200',
-  unknown:  'bg-slate-100 text-slate-500 border-slate-200',
+  upcoming: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+  active:   'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
+  past:     'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600',
+  rebuilt:  'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
+  unknown:  'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600',
 }
 
 export function Badge({ variant = 'past', className, children }) {

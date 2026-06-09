@@ -20,22 +20,22 @@ export default function Login() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-indigo-50 via-white to-sky-50 px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-indigo-50 via-white to-sky-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
             <Globe className="text-white" size={20} />
           </div>
-          <span className="text-xl font-bold text-slate-800 tracking-tight">
+          <span className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
             Marco
           </span>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-lg">
-          <h1 className="text-lg font-bold text-slate-800 mb-1">Welcome back</h1>
-          <p className="text-sm text-slate-500 mb-8">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center shadow-lg">
+          <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Welcome back</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
             Sign in to plan trips with Marco, your AI travel companion.
           </p>
 
@@ -43,8 +43,8 @@ export default function Login() {
             href={`${import.meta.env.VITE_API_URL ?? ''}/api/auth/google/login`}
             onClick={handleLogin}
             className="flex items-center justify-center gap-3 w-full rounded-xl
-              bg-white text-slate-700 font-medium text-sm px-4 py-3
-              border border-slate-200 shadow-sm hover:bg-slate-50 hover:shadow-md transition-all
+              bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium text-sm px-4 py-3
+              border border-slate-200 dark:border-slate-600 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-md transition-all
               aria-disabled:opacity-60 aria-disabled:cursor-not-allowed"
             aria-disabled={loading}
           >
@@ -65,7 +65,7 @@ export default function Login() {
           </a>
         </div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
+        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-6">
           Your trips are private and only visible to you.
         </p>
       </div>

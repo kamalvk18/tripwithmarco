@@ -74,14 +74,14 @@ function buildEqualSplits(amount, memberSubset) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+const inputCls = "rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-400 shadow-sm"
+
 function BalancesTab({ balances, currentUserId, currency, tripId, settlements, onSettlementsUpdate }) {
-  const [settlingId, setSettlingId] = useState(null) // "from_user_id-to_user_id"
+  const [settlingId, setSettlingId] = useState(null)
   const [settleAmount, setSettleAmount] = useState('')
   const [settleNote, setSettleNote] = useState('')
   const [settling, setSettling] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-
-  const inputCls = "rounded-lg bg-white border border-slate-200 text-slate-800 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400 shadow-sm"
 
   function openSettle(balance) {
     setSettlingId(`${balance.from_user_id}-${balance.to_user_id}`)
@@ -120,14 +120,14 @@ function BalancesTab({ balances, currentUserId, currency, tripId, settlements, o
   if (balances.length === 0) {
     return (
       <div className="px-5 py-8 text-center">
-        <Scale size={28} className="mx-auto text-slate-300 mb-2" />
-        <p className="text-sm text-slate-400">All settled up!</p>
-        <p className="text-xs text-slate-300 mt-1">Log shared expenses to see balances here.</p>
+        <Scale size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+        <p className="text-sm text-slate-400 dark:text-slate-500">All settled up!</p>
+        <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Log shared expenses to see balances here.</p>
         {(settlements ?? []).length > 0 && (
           <button
             type="button"
             onClick={() => setShowHistory(h => !h)}
-            className="mt-4 text-xs text-indigo-500 hover:underline cursor-pointer"
+            className="mt-4 text-xs text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
           >
             {showHistory ? 'Hide' : 'Show'} settlement history ({settlements.length})
           </button>
@@ -146,16 +146,24 @@ function BalancesTab({ balances, currentUserId, currency, tripId, settlements, o
 
         return (
           <div key={key(b)} className="space-y-2">
-            <div className={`flex items-center gap-3 p-3 rounded-lg border ${isMe ? 'bg-orange-50 border-orange-200' : owesMe ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`flex items-center gap-3 p-3 rounded-lg border ${
+              isMe    ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700'
+              : owesMe ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+            }`}>
               <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   {isMe ? 'You' : b.from_name}
                 </span>
-                <span className="text-sm text-slate-400 mx-1.5">owe{isMe ? '' : 's'}</span>
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm text-slate-400 dark:text-slate-500 mx-1.5">owe{isMe ? '' : 's'}</span>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   {owesMe ? 'you' : b.to_name}
                 </span>
-                <span className={`ml-2 text-sm font-semibold ${isMe ? 'text-orange-600' : owesMe ? 'text-green-600' : 'text-slate-700'}`}>
+                <span className={`ml-2 text-sm font-semibold ${
+                  isMe ? 'text-orange-600 dark:text-orange-400'
+                  : owesMe ? 'text-green-600 dark:text-green-400'
+                  : 'text-slate-700 dark:text-slate-200'
+                }`}>
                   {formatMoney(b.amount, currency)}
                 </span>
               </div>
@@ -199,7 +207,7 @@ function BalancesTab({ balances, currentUserId, currency, tripId, settlements, o
                   <CheckCircle2 size={13} />
                   {settling ? 'Saving…' : 'Record'}
                 </Button>
-                <button type="button" onClick={cancelSettle} className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer px-1">
+                <button type="button" onClick={cancelSettle} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer px-1">
                   Cancel
                 </button>
               </div>
@@ -209,11 +217,11 @@ function BalancesTab({ balances, currentUserId, currency, tripId, settlements, o
       })}
 
       {(settlements ?? []).length > 0 && (
-        <div className="pt-2 border-t border-slate-100">
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setShowHistory(h => !h)}
-            className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+            className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
           >
             {showHistory ? '▾' : '▸'} Settlement history ({settlements.length})
           </button>
@@ -228,14 +236,14 @@ function SettlementHistory({ settlements, currentUserId, currency, onDelete }) {
   return (
     <div className="mt-2 space-y-1">
       {[...settlements].reverse().map(s => (
-        <div key={s.id} className="flex items-center gap-2 py-1 group text-xs text-slate-500">
-          <CheckCircle2 size={12} className="text-green-500 shrink-0" />
+        <div key={s.id} className="flex items-center gap-2 py-1 group text-xs text-slate-500 dark:text-slate-400">
+          <CheckCircle2 size={12} className="text-green-500 dark:text-green-400 shrink-0" />
           <span className="flex-1 min-w-0 truncate">
             <span className="font-medium">{s.from_user_id === currentUserId ? 'You' : s.from_name}</span>
             {' paid '}
             <span className="font-medium">{s.to_user_id === currentUserId ? 'you' : s.to_name}</span>
             {' · '}{formatMoney(s.amount, currency)}
-            {s.note && <span className="text-slate-400"> · {s.note}</span>}
+            {s.note && <span className="text-slate-400 dark:text-slate-500"> · {s.note}</span>}
             {' · '}{s.date}
           </span>
           {(s.from_user_id === currentUserId) && (
@@ -290,10 +298,9 @@ export function ExpenseTracker({
   const [addError, setAddError] = useState(null)
   const [filter, setFilter] = useState('mine')
 
-  // Group trip: who paid, and how to split
   const [paidByUserId, setPaidByUserId] = useState(currentUserId)
-  const [splitMode, setSplitMode]       = useState('all')   // 'all' | 'select' | 'none'
-  const [splitWith, setSplitWith]       = useState([])      // user IDs when splitMode='select'
+  const [splitMode, setSplitMode]       = useState('all')
+  const [splitWith, setSplitWith]       = useState([])
 
   const mySpending    = spending.filter(e => e.added_by_user_id === currentUserId || !e.added_by_user_id)
   const hasOthers     = spending.some(e => e.added_by_user_id && e.added_by_user_id !== currentUserId)
@@ -364,34 +371,32 @@ export function ExpenseTracker({
     onUpdate?.(spending.filter(e => e.id !== expenseId))
   }
 
-  const inputCls = "rounded-lg bg-white border border-slate-200 text-slate-800 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400 shadow-sm"
-
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
       {/* Header */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer text-left hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
       >
         <div className="flex items-center gap-3">
           <TrendingUp size={16} className="text-indigo-600" />
-          <span className="text-sm font-semibold text-slate-700">Expenses</span>
-          <span className="text-xs text-slate-400">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Expenses</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">
             {formatMoney(myTotalSpent, currency)} my spend
             {estimatedTotal > 0 && ` / ${formatMoney(estimatedTotal, currency)} budget`}
           </span>
           {myDebtCount > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
               {myDebtCount} debt{myDebtCount > 1 ? 's' : ''}
             </span>
           )}
         </div>
-        <ChevronDown size={15} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={15} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="border-t border-slate-100">
+        <div className="border-t border-slate-100 dark:border-slate-800">
           {/* Tabs — only in group trips */}
           {isGroupTrip && (
             <div className="flex gap-1 px-5 pt-3">
@@ -401,7 +406,9 @@ export function ExpenseTracker({
                   type="button"
                   onClick={() => setTab(t)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
-                    tab === t ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    tab === t
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                   }`}
                 >
                   {label}
@@ -427,7 +434,9 @@ export function ExpenseTracker({
                       type="button"
                       onClick={() => setFilter(f)}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
-                        filter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        filter === f
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                       }`}
                     >
                       {f === 'mine' ? 'My expenses' : 'All members'}
@@ -438,7 +447,7 @@ export function ExpenseTracker({
 
               {/* Category summary bars */}
               {CATEGORIES.filter(cat => breakdown[cat] || spentByCategory[cat]).length > 0 && (
-                <div className="px-5 py-4 border-b border-slate-100 space-y-2.5">
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 space-y-2.5">
                   {CATEGORIES.filter(cat => breakdown[cat] || spentByCategory[cat]).map(cat => {
                     const estimated  = breakdown[cat] ?? 0
                     const spent      = spentByCategory[cat] ?? 0
@@ -447,15 +456,15 @@ export function ExpenseTracker({
                     return (
                       <div key={cat}>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-slate-500">{CAT_ICONS[cat]} {cat}</span>
-                          <span className={overBudget ? 'text-red-500 font-medium' : 'text-slate-700'}>
+                          <span className="text-slate-500 dark:text-slate-400">{CAT_ICONS[cat]} {cat}</span>
+                          <span className={overBudget ? 'text-red-500 dark:text-red-400 font-medium' : 'text-slate-700 dark:text-slate-200'}>
                             {formatMoney(spent, currency)}
-                            {estimated > 0 && <span className="text-slate-400 font-normal"> / {formatMoney(estimated, currency)}</span>}
+                            {estimated > 0 && <span className="text-slate-400 dark:text-slate-500 font-normal"> / {formatMoney(estimated, currency)}</span>}
                           </span>
                         </div>
-                        <div className="relative h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="relative h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                           {estimated > 0 && (
-                            <div className="absolute inset-y-0 left-0 rounded-full bg-slate-200" style={{ width: `${(estimated / max) * 100}%` }} />
+                            <div className="absolute inset-y-0 left-0 rounded-full bg-slate-200 dark:bg-slate-600" style={{ width: `${(estimated / max) * 100}%` }} />
                           )}
                           <div
                             className={`absolute inset-y-0 left-0 rounded-full ${overBudget ? 'bg-red-500' : 'bg-indigo-500'}`}
@@ -466,12 +475,12 @@ export function ExpenseTracker({
                     )
                   })}
 
-                  <div className="flex justify-between pt-2 border-t border-slate-100 text-sm font-semibold">
-                    <span className="text-slate-600">{filter === 'all' ? 'Total (all members)' : 'My total'}</span>
-                    <span className={estimatedTotal > 0 && totalSpent > estimatedTotal ? 'text-red-500' : 'text-slate-800'}>
+                  <div className="flex justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-sm font-semibold">
+                    <span className="text-slate-600 dark:text-slate-300">{filter === 'all' ? 'Total (all members)' : 'My total'}</span>
+                    <span className={estimatedTotal > 0 && totalSpent > estimatedTotal ? 'text-red-500 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'}>
                       {formatMoney(totalSpent, currency)}
                       {estimatedTotal > 0 && (
-                        <span className="text-slate-400 font-normal ml-1">/ {formatMoney(estimatedTotal, currency)}</span>
+                        <span className="text-slate-400 dark:text-slate-500 font-normal ml-1">/ {formatMoney(estimatedTotal, currency)}</span>
                       )}
                     </span>
                   </div>
@@ -480,23 +489,23 @@ export function ExpenseTracker({
 
               {/* Expense list */}
               {viewSpending.length > 0 && (
-                <div className="px-5 py-3 border-b border-slate-100 space-y-1 max-h-56 overflow-y-auto">
+                <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 space-y-1 max-h-56 overflow-y-auto">
                   {[...viewSpending].reverse().map(exp => (
                     <div key={exp.id} className="flex items-center gap-3 py-1.5 group">
                       <span className="text-base">{CAT_ICONS[exp.category] ?? '💼'}</span>
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm text-slate-700 truncate block">{exp.description || exp.category}</span>
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <span className="text-sm text-slate-700 dark:text-slate-200 truncate block">{exp.description || exp.category}</span>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                           <span>{exp.date}</span>
                           {exp.paid_by_name && exp.paid_by_user_id !== currentUserId && (
-                            <span className="text-indigo-500 font-medium">· paid by {exp.paid_by_name}</span>
+                            <span className="text-indigo-500 dark:text-indigo-400 font-medium">· paid by {exp.paid_by_name}</span>
                           )}
                           {exp.splits?.length > 1 && (
-                            <span className="text-slate-300">· split {exp.splits.length} ways</span>
+                            <span className="text-slate-300 dark:text-slate-600">· split {exp.splits.length} ways</span>
                           )}
                         </div>
                       </div>
-                      <span className="text-sm font-medium text-slate-700 shrink-0">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 shrink-0">
                         {formatMoney(exp.amount, currency)}
                       </span>
                       {canDelete(exp) && (
@@ -514,7 +523,7 @@ export function ExpenseTracker({
 
               {/* Add expense form */}
               <form onSubmit={handleAdd} className="px-5 py-4 flex flex-col gap-3">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Log an expense</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Log an expense</p>
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     value={form.category}
@@ -555,7 +564,7 @@ export function ExpenseTracker({
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-slate-400 mb-1 block">Paid by</label>
+                        <label className="text-xs text-slate-400 dark:text-slate-500 mb-1 block">Paid by</label>
                         <select
                           value={paidByUserId ?? currentUserId}
                           onChange={e => setPaidByUserId(+e.target.value)}
@@ -569,7 +578,7 @@ export function ExpenseTracker({
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400 mb-1 block">Split</label>
+                        <label className="text-xs text-slate-400 dark:text-slate-500 mb-1 block">Split</label>
                         <select
                           value={splitMode}
                           onChange={e => { setSplitMode(e.target.value); setSplitWith([]) }}
@@ -590,9 +599,9 @@ export function ExpenseTracker({
                               type="checkbox"
                               checked={splitWith.includes(m.user_id)}
                               onChange={() => toggleSplitWith(m.user_id)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
+                              className="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-400"
                             />
-                            <span className="text-xs text-slate-600">
+                            <span className="text-xs text-slate-600 dark:text-slate-300">
                               {m.user_id === currentUserId ? 'You' : m.name}
                             </span>
                           </label>
@@ -603,7 +612,7 @@ export function ExpenseTracker({
                 )}
 
                 {addError && (
-                  <p className="text-xs text-red-500">{addError}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400">{addError}</p>
                 )}
                 <Button type="submit" variant="primary" size="sm" disabled={adding || !form.amount} className="self-start">
                   <PlusCircle size={14} /> {adding ? 'Adding…' : 'Log Expense'}

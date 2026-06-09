@@ -64,20 +64,20 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
   }
 
   const isConfigured = !!emailConfig.email
-  const inputCls = "w-full rounded-lg bg-white border border-slate-200 text-slate-800 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm"
+  const inputCls = "w-full rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 px-3 py-2 text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 transition-all shadow-sm"
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
       {/* Header */}
       <button
         type="button"
         onClick={() => toggleOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer text-left hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
       >
         <div className="flex items-center gap-3">
           <Mail size={16} className="text-indigo-600" />
-          <span className="text-sm font-semibold text-slate-700">Daily Briefing Email</span>
-          <span className="text-xs text-slate-400">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Daily Briefing Email</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">
             {isConfigured && emailConfig.enabled
               ? `✅ Sending to ${emailConfig.email} at ${emailConfig.send_time} UTC`
               : isConfigured
@@ -85,18 +85,18 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
               : 'Not set up'}
           </span>
         </div>
-        <ChevronDown size={15} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={15} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="border-t border-slate-100 px-5 py-5 space-y-4">
-          <p className="text-sm text-slate-500">
+        <div className="border-t border-slate-100 dark:border-slate-800 px-5 py-5 space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Marco sends a morning email each trip day: today's weather, your plan, and remaining budget.
           </p>
 
           <form onSubmit={handleSave} className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Email address</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Email address</label>
               <input
                 type="email"
                 placeholder="you@example.com"
@@ -109,14 +109,14 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">Send time (UTC)</label>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Send time (UTC)</label>
                 <input
                   type="time"
                   value={time}
                   onChange={e => setTime(e.target.value)}
                   className={inputCls}
                 />
-                <p className="text-xs text-slate-400 mt-1">Actual delivery depends on the server's cron schedule.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Actual delivery depends on the server's cron schedule.</p>
               </div>
               <div className="flex items-end pb-0.5">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -126,7 +126,7 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
                     onChange={e => setEnabled(e.target.checked)}
                     className="w-4 h-4 rounded accent-indigo-500"
                   />
-                  <span className="text-sm text-slate-700">Enable briefings</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-200">Enable briefings</span>
                 </label>
               </div>
             </div>
@@ -152,8 +152,8 @@ export function EmailBriefingConfig({ tripId, emailConfig = {}, onUpdate, forceO
 
           {toast && (
             <div className={`rounded-lg px-4 py-2.5 text-sm ${toast.ok
-              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-              : 'bg-red-50 border border-red-200 text-red-600'}`}>
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400'}`}>
               {toast.msg}
             </div>
           )}

@@ -9,11 +9,13 @@ AI-powered travel planning app built around **Marco** — an opinionated travel 
 - **Conversational planning** — natural language trip form; Marco autonomously searches flights, hotels, weather, and local spots during planning
 - **Companion mode** — weather-aware daily advice once the trip is active; auto-rebuilds today's plan around bad weather
 - **Near Me** — geolocation-based activity suggestions from today's itinerary
+- **Trip sharing** — invite links for group trips; per-member expense tracking with live balance settlement
 - **Expense splitting** — Splitwise-style group expense tracking: log who paid, split equally or among selected members, see live per-member balances, and record settlements — no separate app needed
 - **Pre-trip checklist** — auto-generated visa, health, documents, and kit list
 - **Post-trip debrief** — Marco reviews the full conversation and extracts travel preference signals for future planning
 - **Daily briefing email** — morning email each trip day with weather, today's plan, and remaining budget
 - **Export** — Markdown, `.ics` calendar, and self-contained offline HTML
+- **Google OAuth** — sign in with Google; JWT-based session management
 
 ---
 
@@ -21,7 +23,7 @@ AI-powered travel planning app built around **Marco** — an opinionated travel 
 
 | Layer | Technology |
 |---|---|
-| LLM — Planning & Companion | Claude Sonnet 4.5 (streaming, tool use) |
+| LLM — Planning & Companion | Claude Sonnet 4.6 (streaming, tool use) |
 | LLM — Extraction | Claude Haiku 4.5 |
 | Frontend | React 19 + Vite + Tailwind CSS v4 |
 | API | FastAPI + Uvicorn |
@@ -47,6 +49,10 @@ cd frontend && npm install
 ANTHROPIC_API_KEY=sk-ant-...
 OPENWEATHER_API_KEY=...
 SERPAPI_KEY=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+JWT_SECRET=<random-secret>
+FRONTEND_URL=http://localhost:5173
 RESEND_API_KEY=...     # optional — daily briefing emails only
 ```
 
@@ -56,6 +62,7 @@ RESEND_API_KEY=...     # optional — daily briefing emails only
 | `OPENWEATHER_API_KEY` | [openweathermap.org/api](https://openweathermap.org/api) | Free tier |
 | `SERPAPI_KEY` | [serpapi.com](https://serpapi.com) | Free tier: 250 searches/month |
 | `RESEND_API_KEY` | [resend.com](https://resend.com) | Free tier: 3,000 emails/month |
+| `GOOGLE_CLIENT_ID/SECRET` | [Google Cloud Console](https://console.cloud.google.com) → OAuth 2.0 | Free |
 
 **3. Run**
 
@@ -69,7 +76,7 @@ uv run main.py --ui       # React dev server only (requires API running)
 
 ```bash
 cd frontend && npm run build   # outputs to frontend/dist/
-uv run main.py --api           # FastAPI serves the built SPA
+# Deploy dist/ to Vercel; deploy backend to Render (see CLAUDE.md for details)
 ```
 
 ---
@@ -90,7 +97,7 @@ uv run pytest tests/ -v
 React SPA (Vite)
     │ HTTP + SSE
     ▼
-FastAPI  (/api/trips, /api/chat/stream, ...)
+FastAPI  (/api/trips, /api/chat/stream, /api/auth, ...)
     │
     ▼
 planning_agent.py → run_agentic_loop()
@@ -101,7 +108,7 @@ planning_agent.py → run_agentic_loop()
     │       ├── search_places()    → SerpApi
     │       └── get_weather()      → OpenWeather
     │
-    └── end_turn → extract + save to SQLite
+    └── end_turn → extract + save to SQLite / Postgres
 ```
 
 Tool results are disk-cached (weather: 1h, flights/hotels: 6h, places: 24h) to avoid redundant API calls.

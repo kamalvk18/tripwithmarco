@@ -306,10 +306,16 @@ export function ExpenseTracker({
   const hasOthers     = spending.some(e => e.added_by_user_id && e.added_by_user_id !== currentUserId)
   const viewSpending  = (hasOthers && filter === 'all') ? spending : mySpending
 
-  const totalSpent     = viewSpending.reduce((s, e) => s + e.amount, 0)
-  const myTotalSpent   = mySpending.reduce((s, e) => s + e.amount, 0)
+  function myShare(expense) {
+    if (!expense.splits?.length) return expense.amount
+    const split = expense.splits.find(s => s.user_id === currentUserId)
+    return split ? split.amount : 0
+  }
+
+  const totalSpent     = viewSpending.reduce((s, e) => s + (filter === 'mine' ? myShare(e) : e.amount), 0)
+  const myTotalSpent   = mySpending.reduce((s, e) => s + myShare(e), 0)
   const spentByCategory = viewSpending.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] ?? 0) + e.amount
+    acc[e.category] = (acc[e.category] ?? 0) + (filter === 'mine' ? myShare(e) : e.amount)
     return acc
   }, {})
   const estimatedTotal = breakdown.total_estimated ?? 0

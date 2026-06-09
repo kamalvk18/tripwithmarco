@@ -4,8 +4,87 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts'
-import { Users, Map, Activity, AlertTriangle, Zap, Brain } from 'lucide-react'
+import { Users, Map, Activity, AlertTriangle, Zap, Brain, ChevronUp, ChevronDown } from 'lucide-react'
 import { fetchAdminStats } from '@/lib/api'
+
+function timeAgo(iso) {
+  if (!iso) return '—'
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins  = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days  = Math.floor(diff / 86400000)
+  if (mins  < 1)   return 'just now'
+  if (mins  < 60)  return `${mins}m ago`
+  if (hours < 24)  return `${hours}h ago`
+  if (days  < 30)  return `${days}d ago`
+  return new Date(iso).toLocaleDateString()
+}
+
+function UsersTable({ users }) {
+  const [sortCol, setSortCol] = useState('created_at')
+  const [sortDir, setSortDir] = useState('desc')
+
+  function toggleSort(col) {
+    if (sortCol === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortCol(col); setSortDir('desc') }
+  }
+
+  const sorted = [...users].sort((a, b) => {
+    const av = a[sortCol] || ''
+    const bv = b[sortCol] || ''
+    return sortDir === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv)
+  })
+
+  function SortIcon({ col }) {
+    if (sortCol !== col) return <ChevronDown size={12} className="opacity-30" />
+    return sortDir === 'desc'
+      ? <ChevronDown size={12} className="text-indigo-500" />
+      : <ChevronUp   size={12} className="text-indigo-500" />
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">Users</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+              <th className="pb-2 pr-4">Name</th>
+              <th className="pb-2 pr-4">Email</th>
+              <th className="pb-2 pr-6">
+                <button onClick={() => toggleSort('created_at')} className="flex items-center gap-1 hover:text-slate-600 transition-colors">
+                  Joined <SortIcon col="created_at" />
+                </button>
+              </th>
+              <th className="pb-2">
+                <button onClick={() => toggleSort('last_active_at')} className="flex items-center gap-1 hover:text-slate-600 transition-colors">
+                  Last Active <SortIcon col="last_active_at" />
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(u => (
+              <tr key={u.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                <td className="py-2 pr-4 font-medium text-slate-700">{u.name || '—'}</td>
+                <td className="py-2 pr-4 text-slate-500">{u.email}</td>
+                <td className="py-2 pr-6 text-slate-400 text-xs whitespace-nowrap">
+                  {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
+                </td>
+                <td className="py-2 text-slate-400 text-xs whitespace-nowrap">{timeAgo(u.last_active_at)}</td>
+              </tr>
+            ))}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-4 text-center text-slate-400 text-xs">No users yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 // ── Stat card ────────────────────────────────────────────────────────────────
 
@@ -321,36 +400,7 @@ export default function AdminDashboard() {
       )}
 
       {/* ── Recent users table ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-        <SectionTitle>Recent Users</SectionTitle>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                <th className="pb-2 pr-4">Name</th>
-                <th className="pb-2 pr-4">Email</th>
-                <th className="pb-2">Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.recent.map(u => (
-                <tr key={u.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
-                  <td className="py-2 pr-4 font-medium text-slate-700">{u.name || '—'}</td>
-                  <td className="py-2 pr-4 text-slate-500">{u.email}</td>
-                  <td className="py-2 text-slate-400 text-xs">
-                    {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
-                  </td>
-                </tr>
-              ))}
-              {users.recent.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="py-4 text-center text-slate-400 text-xs">No users yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <UsersTable users={users.recent} />
 
     </div>
   )

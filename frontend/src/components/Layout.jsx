@@ -35,6 +35,44 @@ function SidebarContent({ trips, location, user, collapsed, isMobile, onLogout, 
         )}
       </div>
 
+      {/* User profile */}
+      <div className={`border-b border-slate-100 px-3 py-2.5 ${!isExpanded ? 'flex justify-center' : ''}`}>
+        {!isExpanded ? (
+          <button
+            onClick={onLogout}
+            title="Sign out"
+            className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+          >
+            <LogOut size={16} />
+          </button>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            {user?.picture ? (
+              <img
+                src={user.picture}
+                alt={user.name}
+                className="w-7 h-7 rounded-full shrink-0 ring-2 ring-slate-200"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-indigo-600 shrink-0 flex items-center justify-center text-xs text-white font-semibold">
+                {user?.name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-700 truncate">{user?.name}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+            </div>
+            <button
+              onClick={onLogout}
+              title="Sign out"
+              className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* New trip button */}
       <div className="px-3 py-3">
         <button
@@ -110,44 +148,6 @@ function SidebarContent({ trips, location, user, collapsed, isMobile, onLogout, 
           ))}
         </div>
       )}
-
-      {/* User footer */}
-      <div className={`border-t border-slate-100 px-3 py-3 ${!isExpanded ? 'flex justify-center' : ''}`}>
-        {!isExpanded ? (
-          <button
-            onClick={onLogout}
-            title="Sign out"
-            className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-          >
-            <LogOut size={16} />
-          </button>
-        ) : (
-          <div className="flex items-center gap-2.5">
-            {user?.picture ? (
-              <img
-                src={user.picture}
-                alt={user.name}
-                className="w-7 h-7 rounded-full shrink-0 ring-2 ring-slate-200"
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-indigo-600 shrink-0 flex items-center justify-center text-xs text-white font-semibold">
-                {user?.name?.[0]?.toUpperCase() ?? '?'}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-slate-700 truncate">{user?.name}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
-            </div>
-            <button
-              onClick={onLogout}
-              title="Sign out"
-              className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
-        )}
-      </div>
     </>
   )
 }

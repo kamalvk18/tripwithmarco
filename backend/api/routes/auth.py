@@ -43,17 +43,11 @@ def _callback_uri(request: Request) -> str:
     return f"{base}/api/auth/google/callback"
 
 
-@router.get("/google/login")
-async def google_login(request: Request):
-    """Redirect the browser to Google's OAuth consent screen."""
-    if not GOOGLE_CLIENT_ID:
-        raise HTTPException(503, "Google OAuth is not configured on this server")
-
+def _build_google_auth_url(request: Request) -> str:
     state = secrets.token_urlsafe(32)
     now   = time.time()
     _pending_states[state] = now
 
-    # Clean up expired states
     expired = [k for k, v in list(_pending_states.items()) if now - v > _STATE_TTL]
     for k in expired:
         _pending_states.pop(k, None)
@@ -67,7 +61,23 @@ async def google_login(request: Request):
         "access_type":   "offline",
         "prompt":        "select_account",
     }
-    return RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+    return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+
+
+@router.get("/google/login-url")
+async def google_login_url(request: Request):
+    """Return the Google OAuth URL as JSON — avoids proxy redirect issues in local dev."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(503, "Google OAuth is not configured on this server")
+    return {"url": _build_google_auth_url(request)}
+
+
+@router.get("/google/login")
+async def google_login(request: Request):
+    """Redirect the browser to Google's OAuth consent screen."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(503, "Google OAuth is not configured on this server")
+    return RedirectResponse(_build_google_auth_url(request))
 
 
 @router.get("/google/callback")

@@ -36,9 +36,24 @@ def get_stats(current_user: dict = Depends(get_admin_user)):
         total_users = len(all_users)
         new_this_week  = sum(1 for u in all_users if u.created_at and u.created_at.replace(tzinfo=timezone.utc) >= week_ago)
         new_this_month = sum(1 for u in all_users if u.created_at and u.created_at.replace(tzinfo=timezone.utc) >= month_ago)
+
+        # Derive last_active_at from UsageLog (max request timestamp per user)
+        last_active_rows = (
+            session.query(UsageLog.user_id, func.max(UsageLog.created_at).label("last_active"))
+            .group_by(UsageLog.user_id)
+            .all()
+        )
+        last_active_map = {row.user_id: row.last_active for row in last_active_rows}
+
         recent_users = [
-            {"id": u.id, "name": u.name, "email": u.email, "created_at": u.created_at.isoformat() if u.created_at else ""}
-            for u in all_users[:10]
+            {
+                "id":             u.id,
+                "name":           u.name,
+                "email":          u.email,
+                "created_at":     u.created_at.isoformat() if u.created_at else "",
+                "last_active_at": last_active_map[u.id].isoformat() if u.id in last_active_map else "",
+            }
+            for u in all_users[:50]
         ]
 
         # ── Trips ─────────────────────────────────────────────────────────────

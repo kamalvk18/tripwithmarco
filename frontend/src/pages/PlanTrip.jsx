@@ -438,7 +438,16 @@ export default function PlanTrip() {
                 max="50"
                 placeholder="e.g. 1"
                 value={form.numberOfTravelers}
-                onChange={e => setField('numberOfTravelers', Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === '') { setField('numberOfTravelers', ''); return; }
+                  const n = parseInt(val);
+                  if (!isNaN(n)) setField('numberOfTravelers', Math.max(1, n));
+                }}
+                onBlur={() => {
+                  if (!form.numberOfTravelers || form.numberOfTravelers < 1)
+                    setField('numberOfTravelers', 1);
+                }}
               />
             </div>
           </div>

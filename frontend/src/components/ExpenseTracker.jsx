@@ -2,27 +2,10 @@ import { useMemo, useState } from 'react'
 import { PlusCircle, Trash2, TrendingUp, ChevronDown, Scale, CheckCircle2 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
-import { apiFetch, addSettlement, deleteSettlement } from '@/lib/api'
+import { addExpense, deleteExpense, addSettlement, deleteSettlement } from '@/lib/api'
 
 const CATEGORIES = ['flights', 'accommodation', 'food', 'activities', 'transport', 'misc']
 const CAT_ICONS  = { flights: '✈️', accommodation: '🏨', food: '🍽️', activities: '🎟️', transport: '🚌', misc: '💼' }
-
-// ── API helpers ───────────────────────────────────────────────────────────────
-
-async function apiAddExpense(tripId, expense) {
-  const res = await apiFetch(`/api/trips/${tripId}/expenses`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(expense),
-  })
-  if (!res.ok) throw new Error('Failed to add expense')
-  return res.json()
-}
-
-async function apiDeleteExpense(tripId, expenseId) {
-  const res = await apiFetch(`/api/trips/${tripId}/expenses/${expenseId}`, { method: 'DELETE' })
-  return res.ok
-}
 
 // ── Balance computation ───────────────────────────────────────────────────────
 
@@ -358,7 +341,7 @@ export function ExpenseTracker({
         splits = buildEqualSplits(amount, targetMembers)
       }
 
-      const saved = await apiAddExpense(tripId, {
+      const saved = await addExpense(tripId, {
         category:         form.category,
         amount,
         description:      form.description,
@@ -377,7 +360,7 @@ export function ExpenseTracker({
   }
 
   async function handleDelete(expenseId) {
-    await apiDeleteExpense(tripId, expenseId)
+    await deleteExpense(tripId, expenseId)
     onUpdate?.(spending.filter(e => e.id !== expenseId))
   }
 

@@ -226,6 +226,23 @@ export async function leaveTrip(tripId) {
   return res.ok
 }
 
+// ── Expenses ─────────────────────────────────────────────────────────────────
+
+export async function addExpense(tripId, expense) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/expenses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(expense),
+  })
+  if (!res.ok) throw new Error('Failed to add expense')
+  return res.json()
+}
+
+export async function deleteExpense(tripId, expenseId) {
+  const res = await apiFetch(`${BASE}/trips/${tripId}/expenses/${expenseId}`, { method: 'DELETE' })
+  return res.ok
+}
+
 // ── Settlements ──────────────────────────────────────────────────────────────
 
 export async function addSettlement(tripId, { to_user_id, amount, note = '', date = '' }) {

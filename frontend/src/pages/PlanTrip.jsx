@@ -304,6 +304,7 @@ export default function PlanTrip() {
         city:          extracted.city || form.destination,
         country_code:  extracted.country_code || form.destinationCountryCode || '',
         origin_country: extracted.origin_country || '',
+        is_domestic:   extracted.is_domestic ?? null,
         budget:        parseFloat(form.budget) || 0,
         currency:      form.currency,
         number_of_travelers: form.numberOfTravelers || 1,

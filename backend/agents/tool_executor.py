@@ -1,4 +1,5 @@
 import time
+from datetime import date, timedelta
 
 from backend.tools.flights import search_flights, format_flights_for_marco
 from backend.tools.weather import get_weather_forecast, format_weather_for_marco
@@ -8,6 +9,10 @@ from backend.tools.cache import get_cached, set_cached
 
 
 def _log_tool_call(tool_name: str, cache_hit: bool, success: bool, duration_ms: int) -> None:
+    if success and not cache_hit:
+        print(f"✅ {tool_name} completed in {duration_ms}ms")
+    elif not success:
+        print(f"❌ {tool_name} failed in {duration_ms}ms")
     try:
         from backend.db.database import SessionLocal
         from backend.db.models import ToolCallLog
@@ -103,6 +108,18 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
             return result
 
         elif tool_name == "get_weather_forecast":
+            trip_date_str = tool_input.get("trip_date") or tool_input.get("date")
+            if trip_date_str:
+                try:
+                    trip_date = date.fromisoformat(trip_date_str)
+                    if trip_date > date.today() + timedelta(days=7):
+                        return (
+                            "Weather forecasts beyond 7 days are unreliable. "
+                            "Use your knowledge of typical seasonal weather for this destination instead. "
+                            "Do not retry this tool call."
+                        )
+                except ValueError:
+                    pass
             weather_data = get_weather_forecast(
                 tool_input["city"],
                 tool_input.get("country_code", ""),

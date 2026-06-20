@@ -163,11 +163,13 @@ async def extract_info(req: ExtractRequest, _: dict = Depends(check_claude_limit
     # Strip null values so the frontend hasBreakdown check works correctly
     raw_breakdown = structured.get("budget_breakdown") or {}
     clean_breakdown = {k: v for k, v in raw_breakdown.items() if v is not None}
+    raw_is_domestic = extracted.get("is_domestic")
     return ExtractResponse(
         destination=extracted.get("destination", ""),
         city=extracted.get("city", ""),
         country_code=extracted.get("country_code", ""),
         origin_country=extracted.get("origin_country", ""),
+        is_domestic=bool(raw_is_domestic) if raw_is_domestic is not None else None,
         start_date=extracted.get("start_date", ""),
         end_date=extracted.get("end_date", ""),
         budget=float(raw_budget) if raw_budget is not None else None,

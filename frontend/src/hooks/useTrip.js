@@ -40,7 +40,6 @@ export function useTrip(id) {
     const { signal } = controller
 
     async function load() {
-      const wasCached = tripCache.has(id)  // snapshot before any fetch/set
       let data = tripCache.get(id)
 
       if (data) {
@@ -64,7 +63,7 @@ export function useTrip(id) {
       const missingBreakdown =
         !data.budget_breakdown || Object.keys(data.budget_breakdown).length === 0
       const missingDays = !data.days?.length
-      const shouldExtract = !wasCached || missingBreakdown || missingDays
+      const shouldExtract = missingBreakdown || missingDays
       if (shouldExtract && (data.messages ?? []).length > 0) {
         const extracted = await extractInfo(data.messages, data.currency ?? 'EUR', signal)
         const bd = extracted?.budget_breakdown

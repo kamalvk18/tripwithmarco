@@ -448,6 +448,7 @@ export default function TripView() {
             tripId={id}
             destination={tripData.destination}
             originCountry={tripData.origin_country}
+            isDomestic={tripData.is_domestic ?? null}
             items={tripData.checklist ?? []}
             onUpdate={updateChecklist}
           />

@@ -2,43 +2,41 @@ import os
 import re
 import json
 from datetime import date, datetime
-from anthropic import Anthropic
 from dotenv import load_dotenv
+from backend import llm
 from backend.agents.tools import TOOL_DEFINITIONS
 from backend.agents.tool_executor import execute_tool
 from backend.tools.weather import get_weather_forecast, format_weather_for_marco
 from backend.config import (
-    SONNET_MODEL,
-    HAIKU_MODEL,
+    LLM_MODEL,
+    LLM_FAST_MODEL,
     PLANNING_MAX_TOKENS,
     COMPANION_MAX_TOKENS,
     EXTRACTION_MAX_TOKENS,
 )
 
 
-def _log_claude_usage(model: str, usage) -> None:
+def _log_usage(model: str, usage: dict) -> None:
     try:
         from backend.db.database import SessionLocal
         from backend.db.models import ClaudeUsageLog
         with SessionLocal() as session:
             session.add(ClaudeUsageLog(
                 model=model,
-                input_tokens=getattr(usage, "input_tokens", 0) or 0,
-                output_tokens=getattr(usage, "output_tokens", 0) or 0,
-                cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
-                cache_creation_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+                input_tokens=usage.get("input_tokens", 0) or 0,
+                output_tokens=usage.get("output_tokens", 0) or 0,
+                cache_read_tokens=usage.get("cache_read_tokens", 0) or 0,
+                cache_creation_tokens=usage.get("cache_creation_tokens", 0) or 0,
             ))
             session.commit()
     except Exception:
         pass
 
-load_dotenv()
 
-client = Anthropic()
+load_dotenv()
 
 
 def load_prompt(filename: str) -> str:
-    """Load a prompt from the prompts directory."""
     prompts_dir = os.path.join(os.path.dirname(__file__), '..', 'prompts')
     filepath = os.path.join(prompts_dir, filename)
     with open(filepath, 'r') as f:
@@ -47,14 +45,13 @@ def load_prompt(filename: str) -> str:
 
 SYSTEM_PROMPT = load_prompt("marco.md")
 
-# Static system prompts for Haiku extraction calls — defined at module level so
-# the same string object is reused across requests, maximising cache hit rate.
 _EXTRACT_TRIP_SYSTEM = """Extract trip details from a travel planning conversation.
 Return ONLY a JSON object with these exact fields:
 - destination: descriptive trip name (e.g. "Kraków, Poland", "Austrian Alps")
 - city: main city for weather lookup (e.g. "Kraków", "Salzburg")
 - country_code: 2-letter ISO code (e.g. "PL", "AT", "ES")
 - origin_country: full country name the user is travelling FROM (e.g. "India", "United Kingdom"), or "" if not mentioned
+- is_domestic: true if origin and destination are in the same country, false if different countries, null if cannot be determined
 - start_date: YYYY-MM-DD format, or "" if not mentioned
 - end_date: YYYY-MM-DD format, or "" if not mentioned
 - budget: the user's most recently stated budget as a plain number (e.g. 35000), or null if not mentioned. Use the LATEST value if the user updated it.
@@ -102,10 +99,6 @@ Return ONLY a JSON array of strings. Example: ["Prefers local food markets over 
 _INJECT_RE = re.compile(r"(##\s|ignore\s|system\s*prompt|<\s*/?system|instruction)", re.IGNORECASE)
 
 def _safe_str(value: str, max_len: int = 200) -> str:
-    """Sanitize a client-supplied string before injecting it into the system prompt.
-    Strips leading/trailing whitespace, truncates, and rejects values that look
-    like prompt-injection attempts (returns empty string in that case).
-    """
     s = str(value).strip()[:max_len]
     if _INJECT_RE.search(s):
         return ""
@@ -113,23 +106,20 @@ def _safe_str(value: str, max_len: int = 200) -> str:
 
 
 def extract_trip_details(messages: list) -> dict:
-    """Use Claude Haiku to extract structured trip details from conversation."""
+    """Use the fast model to extract structured trip details from conversation."""
     conversation = "\n".join(
         f"{m['role'].upper()}: {m['content'][:600]}"
         for m in messages
     )
-
     try:
-        response = client.messages.create(
-            model=HAIKU_MODEL,
+        resp = llm.complete(
+            model=LLM_FAST_MODEL,
+            system=_EXTRACT_TRIP_SYSTEM,
+            messages=[{"role": "user", "content": f"Extract trip details:\n\n{conversation}"}],
             max_tokens=EXTRACTION_MAX_TOKENS,
-            system=[{"type": "text", "text": _EXTRACT_TRIP_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-            messages=[
-                {"role": "user", "content": f"Extract trip details:\n\n{conversation}"}
-            ]
         )
-        _log_claude_usage(HAIKU_MODEL, response.usage)
-        raw = response.content[0].text.strip().strip("```json").strip("```").strip()
+        _log_usage(LLM_FAST_MODEL, resp["usage"])
+        raw = resp["text"].strip().strip("```json").strip("```").strip()
         return json.loads(raw)
     except Exception:
         return {}
@@ -137,110 +127,96 @@ def extract_trip_details(messages: list) -> dict:
 
 def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
     """
-    Use Haiku with tool_choice to extract a typed day-by-day plan + budget in one call.
-
-    Forcing tool use guarantees the model returns the exact schema — no JSON
-    parsing fragility, no regex, no missed fields.
-
+    Use the fast model with tool_choice to extract a typed day-by-day plan + budget.
     Returns {"days": [...], "budget_breakdown": {...}} or {} on failure.
     """
     if not itinerary:
         return {}
 
     _tool = {
-        "name": "save_itinerary",
-        "description": "Persist the structured itinerary with day plans and budget breakdown.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {
-                    "type": "array",
-                    "description": "Every day section from the itinerary, in order.",
-                    "items": {
+        "type": "function",
+        "function": {
+            "name": "save_itinerary",
+            "description": "Persist the structured itinerary with day plans and budget breakdown.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "array",
+                        "description": "Every day section from the itinerary, in order.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "day": {
+                                    "type": "integer",
+                                    "description": (
+                                        "Day number as an integer. "
+                                        "For ranges like 'Day 5-6' use the first number (5)."
+                                    ),
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": (
+                                        "Descriptive title only — strip the 'Day N', 'Day N:', "
+                                        "or 'Day N — ' prefix and any leading date. "
+                                        "e.g. from '## Day 1 — Arrival & Gentle Start' extract 'Arrival & Gentle Start'."
+                                    ),
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "Complete text for this day (activities, meals, tips, etc.).",
+                                },
+                            },
+                            "required": ["day", "title", "content"],
+                        },
+                    },
+                    "budget_breakdown": {
                         "type": "object",
+                        "description": f"Estimated total costs in {currency} for the whole trip.",
                         "properties": {
-                            "day": {
-                                "type": "integer",
+                            "travel": {
+                                "type": ["number", "null"],
                                 "description": (
-                                    "Day number as an integer. "
-                                    "For ranges like 'Day 5-6' use the first number (5)."
+                                    "Intercity transport cost — flights, trains, buses, ferries, or car hire as appropriate. "
+                                    "Use 0 if transport is mentioned but free/included; null only if absent from the plan."
                                 ),
                             },
-                            "title": {
-                                "type": "string",
-                                "description": (
-                                    "Descriptive title only — strip the 'Day N', 'Day N:', "
-                                    "or 'Day N — ' prefix and any leading date. "
-                                    "e.g. from '## Day 1 — Arrival & Gentle Start' extract 'Arrival & Gentle Start'."
-                                ),
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Complete text for this day (activities, meals, tips, etc.).",
-                            },
+                            "accommodation": {"type": ["number", "null"], "description": "Total accommodation costs."},
+                            "food": {"type": ["number", "null"], "description": "Total food & dining costs."},
+                            "activities": {"type": ["number", "null"], "description": "Total activity & entrance-fee costs."},
+                            "transport": {"type": ["number", "null"], "description": "Local transport costs within the destination (taxis, metro, auto-rickshaw, etc.)."},
+                            "total_estimated": {"type": ["number", "null"], "description": "Sum of all estimated costs."},
                         },
-                        "required": ["day", "title", "content"],
                     },
                 },
-                "budget_breakdown": {
-                    "type": "object",
-                    "description": f"Estimated total costs in {currency} for the whole trip.",
-                    "properties": {
-                        "travel": {
-                            "type": ["number", "null"],
-                            "description": (
-                                "Intercity transport cost — flights, trains, buses, ferries, or car hire as appropriate. "
-                                "Use 0 if transport is mentioned but free/included; null only if absent from the plan."
-                            ),
-                        },
-                        "accommodation": {"type": ["number", "null"], "description": "Total accommodation costs."},
-                        "food": {"type": ["number", "null"], "description": "Total food & dining costs."},
-                        "activities": {"type": ["number", "null"], "description": "Total activity & entrance-fee costs."},
-                        "transport": {"type": ["number", "null"], "description": "Local transport costs within the destination (taxis, metro, auto-rickshaw, etc.)."},
-                        "total_estimated": {"type": ["number", "null"], "description": "Sum of all estimated costs."},
-                    },
-                },
+                "required": ["days", "budget_breakdown"],
             },
-            "required": ["days", "budget_breakdown"],
         },
-        "cache_control": {"type": "ephemeral"},
     }
 
     try:
-        response = client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=8096,
-            tools=[_tool],
-            tool_choice={"type": "tool", "name": "save_itinerary"},
-            system=[{
-                "type": "text",
-                "text": (
-                    f"You are a travel itinerary parser. "
-                    f"Extract every day section and the budget estimate (in {currency}) "
-                    f"from the itinerary below. Preserve the full content for each day."
-                ),
-                "cache_control": {"type": "ephemeral"},
-            }],
+        resp = llm.complete(
+            model=LLM_FAST_MODEL,
+            system=(
+                f"You are a travel itinerary parser. "
+                f"Extract every day section and the budget estimate (in {currency}) "
+                f"from the itinerary below. Preserve the full content for each day."
+            ),
             messages=[{"role": "user", "content": itinerary[:8000]}],
+            tools=[_tool],
+            tool_choice={"type": "function", "function": {"name": "save_itinerary"}},
+            max_tokens=8096,
         )
-        _log_claude_usage(HAIKU_MODEL, response.usage)
-        for block in response.content:
-            if hasattr(block, "type") and block.type == "tool_use":
-                return block.input
+        _log_usage(LLM_FAST_MODEL, resp["usage"])
+        if resp["tool_calls"]:
+            return resp["tool_calls"][0]["input"]
     except Exception as exc:
         print(f"extract_structured_itinerary error: {exc}")
     return {}
 
 
 def extract_itinerary(messages: list) -> str:
-    """Pull the full itinerary text from saved conversation history.
-
-    Prefers the last assistant message that has proper Day N headers (i.e. a
-    real day-by-day plan), falling back to the last message that merely
-    mentions "day 1".  This prevents later conversational replies that
-    casually reference "Day 1" from shadowing the actual itinerary.
-    """
-    # Allow optional non-word chars (emojis, icons) between ### and Day N
+    """Pull the full itinerary text from saved conversation history."""
     heading_re = re.compile(r'(?i)(?:^|\n)[ \t]*(?:#{1,3}[ \t]*[^\w\n]*[ \t]*)?\*{0,2}day[ \t]+\d+')
 
     def _is_real_itinerary(content: str) -> bool:
@@ -248,12 +224,10 @@ def extract_itinerary(messages: list) -> str:
 
     candidates = [m for m in reversed(messages) if m["role"] == "assistant"]
 
-    # Prefer a message with actual day-structure headings
     for m in candidates:
         if _is_real_itinerary(m["content"]):
             return m["content"]
 
-    # Fallback: last assistant message that mentions "day 1" at all
     for m in candidates:
         if "day 1" in m["content"].lower():
             return m["content"]
@@ -273,13 +247,6 @@ def extract_day_section(itinerary: str, day_number: int) -> str:
 
 def extract_all_days(itinerary: str) -> list[dict]:
     """Split itinerary into individual day sections for structured display."""
-    # Matches day headings in any format Marco produces, e.g.:
-    #   ### **DAY 1 (May 28) — ARRIVAL & GENTLE START**
-    #   ### **DAY 5-6 (June 1-2) — HAMPI ESCAPE**
-    #   **Day 3:** Culture day
-    # Key additions over the original pattern:
-    #   (?:-\d+)?       — handles day ranges like "5-6"
-    #   (?:\s*\([^)]*\))?  — handles parenthetical dates like "(May 28)"
     heading_pattern = re.compile(
         r'(?im)^([ \t]*(?:#{1,3}[ \t]*[^\w\n]*[ \t]*)?\*{0,2}(?:DAY|Day)[ \t]+(\d+)(?:-\d+)?(?:\*{0,2})?(?:\s*\([^)]*\))?[ \t]*(?:[-—–:][^\n]*)?)$'
     )
@@ -287,7 +254,6 @@ def extract_all_days(itinerary: str) -> list[dict]:
     if not matches:
         return []
 
-    # Keep only the first occurrence of each day number to avoid duplicates
     seen: set[int] = set()
     unique_matches = []
     for match in matches:
@@ -313,10 +279,7 @@ def extract_all_days(itinerary: str) -> list[dict]:
 
 
 def get_trip_day(start_date_str: str, end_date_str: str) -> dict:
-    """
-    Given saved trip dates, calculate which day of the trip today is.
-    Returns a dict with status and day info.
-    """
+    """Given saved trip dates, calculate which day of the trip today is."""
     today = date.today()
 
     try:
@@ -351,72 +314,67 @@ def get_trip_day(start_date_str: str, end_date_str: str) -> dict:
         }
 
 
-def run_agentic_loop(messages: list, system: str | list, on_tool_call=None, collected: dict | None = None, model: str | None = None, max_tokens: int | None = None):
+def run_agentic_loop(
+    messages: list,
+    system: str | list,
+    on_tool_call=None,
+    collected: dict | None = None,
+    model: str | None = None,
+    max_tokens: int | None = None,
+):
     """
     Core agentic loop — handles tool use automatically.
-    Yields text chunks as they stream from Claude.
-
-    Args:
-        messages:     Conversation history (list of role/content dicts).
-        system:       System prompt — either a plain string or a list of content
-                      blocks (supports cache_control for prompt caching).
-        on_tool_call: Optional callable(tool_name: str, tool_input: dict) fired
-                      just before each tool is executed. Use it to surface live
-                      progress in a UI (e.g., update an st.empty() container).
-        collected:    Optional mutable dict; tool results (e.g. hotel suggestions)
-                      are written here so callers can surface them in the UI.
-        model:        Override the model. Defaults to SONNET_MODEL.
-        max_tokens:   Override max output tokens. Defaults to PLANNING_MAX_TOKENS.
+    Yields text chunks as they stream from the LLM.
     """
-
-    _model = model or SONNET_MODEL
+    _model = model or LLM_MODEL
     _max_tokens = max_tokens or PLANNING_MAX_TOKENS
-    current_messages = messages.copy()
+    current_messages = list(messages)
+    iteration = 0
 
     while True:
-        with client.messages.stream(
-            model=_model,
-            max_tokens=_max_tokens,
-            system=system,
-            tools=TOOL_DEFINITIONS,
-            messages=current_messages
-        ) as stream:
-            for text in stream.text_stream:
-                yield text
+        iteration += 1
+        if iteration > 1:
+            print(f"🔄 Agentic loop iteration {iteration}")
+        tool_calls = []
 
-            final_message = stream.get_final_message()
-            _log_claude_usage(_model, final_message.usage)
+        for event_type, data in llm.stream(
+            _model, current_messages, system=system, tools=TOOL_DEFINITIONS, max_tokens=_max_tokens
+        ):
+            if event_type == "text":
+                yield data
+            elif event_type == "tool_use":
+                tool_calls.append(data)
+            elif event_type == "usage":
+                _log_usage(_model, data)
 
-        if final_message.stop_reason == "end_turn":
+        if not tool_calls:
             return
 
-        if final_message.stop_reason == "tool_use":
+        # Append assistant turn with tool calls in OpenAI format
+        current_messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {"name": tc["name"], "arguments": json.dumps(tc["input"])},
+                }
+                for tc in tool_calls
+            ],
+        })
+
+        # Execute each tool and append its result
+        for tc in tool_calls:
+            print(f"🔧 Marco is using tool: {tc['name']} with {tc['input']}")
+            if on_tool_call is not None:
+                on_tool_call(tc["name"], tc["input"])
+            result = execute_tool(tc["name"], tc["input"], collected=collected)
             current_messages.append({
-                "role": "assistant",
-                "content": final_message.content
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
             })
-
-            tool_results = []
-
-            for block in final_message.content:
-                if block.type == "tool_use":
-                    print(f"🔧 Marco is using tool: {block.name} with {block.input}")
-                    if on_tool_call is not None:
-                        on_tool_call(block.name, block.input)
-                    result = execute_tool(block.name, block.input, collected=collected)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result
-                    })
-
-            current_messages.append({
-                "role": "user",
-                "content": tool_results
-            })
-
-        else:
-            return
 
 
 def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, on_tool_call=None, collected: dict | None = None):
@@ -449,13 +407,9 @@ def chat(messages: list, trip_data: dict = None, companion_mode: bool = False, o
             day_number = trip_day["day_number"]
             total_days = trip_day["total_days"]
 
-            # Extract today's plan from the saved itinerary
             itinerary = extract_itinerary(trip_data.get("messages", []))
             today_plan = extract_day_section(itinerary, day_number)
 
-            # Always fetch weather server-side — never trust client-supplied weather_text
-            # since it lands verbatim in the system prompt (prompt-injection vector).
-            # Results are disk-cached (1-hour TTL) so this is not an extra API call.
             city = trip_data.get("city") or trip_data.get("destination", "")
             country_code = trip_data.get("country_code", "")
             weather_text = ""
@@ -495,49 +449,35 @@ Ask how yesterday went if it's Day 2+."""
 {weather_text}
 Use this to adjust today's plan. Don't mention you fetched it — just act on it."""
 
-    # Cache the static system prompt (marco.md) — it never changes between requests.
-    # The dynamic block (date, companion context) is excluded from the cache since it
-    # varies per request and would bust the cache on every call anyway.
-    system = [
-        {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": dynamic_context},
-    ]
+    system = SYSTEM_PROMPT + dynamic_context
 
-    model = HAIKU_MODEL if companion_mode else SONNET_MODEL
+    model = LLM_FAST_MODEL if companion_mode else LLM_MODEL
     tokens = COMPANION_MAX_TOKENS if companion_mode else PLANNING_MAX_TOKENS
     yield from run_agentic_loop(messages, system, on_tool_call=on_tool_call, collected=collected, model=model, max_tokens=tokens)
 
-def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:
-    """
-    Use Claude Haiku to generate a pre-trip checklist.
 
-    Returns a list of dicts: [{category, item, priority}]
-    Categories: visa, health, insurance, documents, kit
-    Priorities: high | normal | low
-    """
-    # Normalise any non-standard priority Haiku might return
+def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:
+    """Use the fast model to generate a pre-trip checklist."""
     _PRIORITY_MAP = {"high": "high", "normal": "normal", "low": "low",
                      "medium": "normal", "moderate": "normal", "critical": "high"}
 
     try:
-        response = client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=1024,
-            system=[{"type": "text", "text": _CHECKLIST_SYSTEM, "cache_control": {"type": "ephemeral"}}],
+        resp = llm.complete(
+            model=LLM_FAST_MODEL,
+            system=_CHECKLIST_SYSTEM,
             messages=[{"role": "user", "content": (
                 f"Generate a pre-trip checklist for:\n\n"
                 f"Destination: {destination}\n"
                 f"Passport / citizenship country: {passport_country or 'not specified'}\n"
                 f"Departure date: {start_date or 'soon'}"
             )}],
+            max_tokens=1024,
         )
-        _log_claude_usage(HAIKU_MODEL, response.usage)
-        raw = response.content[0].text.strip()
-        # Strip markdown fences if Haiku adds them
+        _log_usage(LLM_FAST_MODEL, resp["usage"])
+        raw = resp["text"].strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
         items = json.loads(raw)
-        # Validate and normalise
         validated = []
         for item in items:
             if isinstance(item, dict) and "item" in item:
@@ -550,10 +490,8 @@ def generate_checklist(destination: str, passport_country: str, start_date: str)
         return validated
     except Exception as exc:
         print(f"generate_checklist error: {exc}")
-        # Return a minimal fallback checklist (domestic-aware)
         fallback = [{"category": "insurance", "item": "Purchase travel insurance", "priority": "high"}]
         if passport_country and destination:
-            # Very rough domestic check — if the passport country name appears in the destination
             pc = passport_country.lower().strip()
             dest = destination.lower()
             is_domestic = pc in dest or dest in pc
@@ -568,22 +506,18 @@ def generate_checklist(destination: str, passport_country: str, start_date: str)
 
 
 def extract_preferences(debrief_text: str) -> list[str]:
-    """
-    Use Haiku to extract 3-6 concrete travel preference signals from a post-trip debrief.
-    Returns a list of short strings, e.g. ["Prefers street food over restaurants", ...].
-    Falls back to [] on any error.
-    """
+    """Use the fast model to extract travel preference signals from a post-trip debrief."""
     if not debrief_text:
         return []
     try:
-        response = client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=256,
-            system=[{"type": "text", "text": _PREFERENCES_SYSTEM, "cache_control": {"type": "ephemeral"}}],
+        resp = llm.complete(
+            model=LLM_FAST_MODEL,
+            system=_PREFERENCES_SYSTEM,
             messages=[{"role": "user", "content": debrief_text}],
+            max_tokens=256,
         )
-        _log_claude_usage(HAIKU_MODEL, response.usage)
-        raw = response.content[0].text.strip()
+        _log_usage(LLM_FAST_MODEL, resp["usage"])
+        raw = resp["text"].strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
         result = json.loads(raw)

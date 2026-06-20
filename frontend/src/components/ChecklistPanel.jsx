@@ -23,11 +23,11 @@ async function apiToggle(tripId, itemId, completed) {
   return res.ok
 }
 
-export function ChecklistPanel({ tripId, destination, originCountry, items = [], onUpdate }) {
+export function ChecklistPanel({ tripId, destination, originCountry, isDomestic = null, items = [], onUpdate }) {
   const [open, setOpen]             = useState(false)
   const [generating, setGenerating] = useState(false)
   const [passport, setPassport]     = useState('')
-  const [tripType, setTripType]     = useState(null) // null | 'pick' | 'domestic' | 'international'
+  const [tripType, setTripType]     = useState(null) // null | 'pick' | 'passport'
   const [error, setError]           = useState(null)
 
   const done  = items.filter(i => i.completed).length
@@ -56,12 +56,27 @@ export function ChecklistPanel({ tripId, destination, originCountry, items = [],
 
   async function handleGenerate(e) {
     e.preventDefault()
-    await generate(tripType === 'international' ? passport : '')
+    await generate(tripType === 'passport' ? passport : '')
   }
 
-  // If the trip already knows the origin country, generate directly without asking
+  // Generate without asking — used when domestic is known OR origin_country is stored on the trip
   async function handleGenerateDirect() {
-    await generate('')  // backend will use origin_country from trip data
+    await generate('')  // backend uses origin_country from trip data
+  }
+
+  // Decide what clicking "Generate Checklist" does:
+  // - domestic known → generate immediately
+  // - origin country known → generate immediately (backend handles domestic check)
+  // - international, no origin → jump straight to passport input
+  // - unknown → show domestic / international picker
+  function handleGenerateClick() {
+    if (isDomestic === true || originCountry) {
+      handleGenerateDirect()
+    } else if (isDomestic === false) {
+      setTripType('passport')
+    } else {
+      setTripType('pick')
+    }
   }
 
   async function handleToggle(itemId, current) {
@@ -110,23 +125,17 @@ export function ChecklistPanel({ tripId, destination, originCountry, items = [],
                 insurance, documents and kit — specific to {destination}.
               </p>
               {tripType === null && (
-                <Button variant="primary" size="sm" onClick={originCountry ? handleGenerateDirect : () => setTripType('pick')}>
+                <Button variant="primary" size="sm" onClick={handleGenerateClick}>
                   <ClipboardList size={14} /> Generate Checklist
                 </Button>
               )}
               {tripType === 'pick' && (
                 <div className="flex gap-2 justify-center">
-                  <Button variant="secondary" size="sm" onClick={() => setTripType('domestic')}>Domestic trip</Button>
-                  <Button variant="primary" size="sm" onClick={() => setTripType('international')}>International trip</Button>
+                  <Button variant="secondary" size="sm" onClick={() => generate('')}>Domestic trip</Button>
+                  <Button variant="primary" size="sm" onClick={() => setTripType('passport')}>International trip</Button>
                 </div>
               )}
-              {tripType === 'domestic' && (
-                <form onSubmit={handleGenerate} className="flex gap-2 justify-center">
-                  <Button type="submit" variant="primary" size="sm">Generate</Button>
-                  <Button type="button" variant="secondary" size="sm" onClick={resetForm}>Back</Button>
-                </form>
-              )}
-              {tripType === 'international' && (
+              {tripType === 'passport' && (
                 <form onSubmit={handleGenerate} className="flex gap-2 justify-center">
                   <input
                     type="text"
@@ -202,7 +211,7 @@ export function ChecklistPanel({ tripId, destination, originCountry, items = [],
                 {tripType === null && (
                   <button
                     type="button"
-                    onClick={originCountry ? handleGenerateDirect : () => setTripType('pick')}
+                    onClick={handleGenerateClick}
                     className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer transition-colors"
                   >
                     <RefreshCw size={11} /> Regenerate checklist
@@ -210,18 +219,12 @@ export function ChecklistPanel({ tripId, destination, originCountry, items = [],
                 )}
                 {tripType === 'pick' && (
                   <div className="flex gap-2 mt-2">
-                    <Button variant="secondary" size="sm" onClick={() => setTripType('domestic')}>Domestic trip</Button>
-                    <Button variant="primary" size="sm" onClick={() => setTripType('international')}>International trip</Button>
+                    <Button variant="secondary" size="sm" onClick={() => generate('')}>Domestic trip</Button>
+                    <Button variant="primary" size="sm" onClick={() => setTripType('passport')}>International trip</Button>
                     <Button variant="secondary" size="sm" onClick={resetForm}>Cancel</Button>
                   </div>
                 )}
-                {tripType === 'domestic' && (
-                  <form onSubmit={handleGenerate} className="flex gap-2 mt-2">
-                    <Button type="submit" variant="primary" size="sm">Regenerate</Button>
-                    <Button type="button" variant="secondary" size="sm" onClick={resetForm}>Cancel</Button>
-                  </form>
-                )}
-                {tripType === 'international' && (
+                {tripType === 'passport' && (
                   <form onSubmit={handleGenerate} className="flex gap-2 mt-2">
                     <input
                       type="text"

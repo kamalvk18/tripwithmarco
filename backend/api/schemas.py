@@ -67,6 +67,7 @@ class TripDetail(BaseModel):
     city: str = ""
     country_code: str = ""
     origin_country: str = ""
+    is_domestic: bool | None = None
     budget: float | None = None
     currency: str | None = None
     budget_breakdown: dict[str, Any] | None = None
@@ -212,6 +213,7 @@ class ExtractResponse(BaseModel):
     city: str = ""
     country_code: str = ""
     origin_country: str = ""
+    is_domestic: bool | None = None
     start_date: str = ""
     end_date: str = ""
     budget: float | None = None

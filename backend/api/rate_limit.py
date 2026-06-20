@@ -17,7 +17,6 @@ from backend.auth.deps import get_current_user
 from backend.db.database import SessionLocal
 from backend.db.models import UsageLog
 
-
 def _today_start_utc() -> datetime:
     now = datetime.now(timezone.utc)
     return now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
@@ -35,6 +34,8 @@ def _count_today(user_id: int, endpoint: str, method: str = "POST") -> int:
 
 
 def check_trip_limit(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user.get("is_admin"):
+        return current_user
     limit = int(os.getenv("DAILY_TRIP_LIMIT", "2"))
     count = _count_today(current_user["id"], "/api/trips")
     if count >= limit:
@@ -46,6 +47,8 @@ def check_trip_limit(current_user: dict = Depends(get_current_user)) -> dict:
 
 
 def check_chat_limit(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user.get("is_admin"):
+        return current_user
     limit = int(os.getenv("DAILY_CHAT_LIMIT", "20"))
     count = (
         _count_today(current_user["id"], "/api/chat/stream")
@@ -64,6 +67,8 @@ def check_claude_limit(current_user: dict = Depends(get_current_user)) -> dict:
     """Lightweight rate limit for endpoints that make a single Claude Haiku call.
     Shares the same daily budget as chat to prevent abuse via checklist/debrief loops.
     """
+    if current_user.get("is_admin"):
+        return current_user
     limit = int(os.getenv("DAILY_CHAT_LIMIT", "20"))
     count = (
         _count_today(current_user["id"], "/api/chat/stream")

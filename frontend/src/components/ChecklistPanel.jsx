@@ -2,15 +2,14 @@ import { useState } from 'react'
 import { ClipboardList, RefreshCw, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
-import { apiFetch } from '@/lib/api'
+import { generateChecklist, toggleChecklistItem } from '@/lib/api'
 
 const CAT_ICONS  = { visa: '🛂', health: '💉', insurance: '🛡️', documents: '📄', kit: '🎒' }
 const CAT_ORDER  = ['visa', 'health', 'insurance', 'documents', 'kit']
 const PRIORITY_CLASS = { high: 'text-red-600 dark:text-red-400', normal: 'text-slate-700 dark:text-slate-200', low: 'text-slate-500 dark:text-slate-400' }
 
 async function apiGenerate(tripId, passportCountry) {
-  const params = passportCountry ? `?passport_country=${encodeURIComponent(passportCountry)}` : ''
-  const res = await apiFetch(`/api/trips/${tripId}/checklist${params}`, { method: 'POST' })
+  const res = await generateChecklist(tripId, passportCountry)
   if (!res.ok) {
     let detail = `Server error ${res.status}`
     try { detail = (await res.json()).detail ?? detail } catch { /* ignore */ }
@@ -20,10 +19,7 @@ async function apiGenerate(tripId, passportCountry) {
 }
 
 async function apiToggle(tripId, itemId, completed) {
-  const res = await apiFetch(
-    `/api/trips/${tripId}/checklist/${itemId}?completed=${completed}`,
-    { method: 'PATCH' },
-  )
+  const res = await toggleChecklistItem(tripId, itemId, completed)
   return res.ok
 }
 

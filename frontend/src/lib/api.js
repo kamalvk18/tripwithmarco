@@ -260,6 +260,17 @@ export async function deleteSettlement(tripId, settlementId) {
   return res.ok
 }
 
+// ── Checklist ────────────────────────────────────────────────────────────────
+
+export async function generateChecklist(tripId, passportCountry) {
+  const params = passportCountry ? `?passport_country=${encodeURIComponent(passportCountry)}` : ''
+  return apiFetch(`${BASE}/trips/${tripId}/checklist${params}`, { method: 'POST' })
+}
+
+export async function toggleChecklistItem(tripId, itemId, completed) {
+  return apiFetch(`${BASE}/trips/${tripId}/checklist/${itemId}?completed=${completed}`, { method: 'PATCH' })
+}
+
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 export async function fetchAdminStats() {

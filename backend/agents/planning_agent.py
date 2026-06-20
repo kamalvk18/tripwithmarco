@@ -54,6 +54,7 @@ Return ONLY a JSON object with these exact fields:
 - destination: descriptive trip name (e.g. "Kraków, Poland", "Austrian Alps")
 - city: main city for weather lookup (e.g. "Kraków", "Salzburg")
 - country_code: 2-letter ISO code (e.g. "PL", "AT", "ES")
+- origin_country: full country name the user is travelling FROM (e.g. "India", "United Kingdom"), or "" if not mentioned
 - start_date: YYYY-MM-DD format, or "" if not mentioned
 - end_date: YYYY-MM-DD format, or "" if not mentioned
 - budget: the user's most recently stated budget as a plain number (e.g. 35000), or null if not mentioned. Use the LATEST value if the user updated it.
@@ -180,17 +181,17 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
                     "type": "object",
                     "description": f"Estimated total costs in {currency} for the whole trip.",
                     "properties": {
-                        "flights": {
+                        "travel": {
                             "type": ["number", "null"],
                             "description": (
-                                "Total flight costs. Use 0 if flights are mentioned but free/included; "
-                                "null only if flights are completely absent from the plan."
+                                "Intercity transport cost — flights, trains, buses, ferries, or car hire as appropriate. "
+                                "Use 0 if transport is mentioned but free/included; null only if absent from the plan."
                             ),
                         },
                         "accommodation": {"type": ["number", "null"], "description": "Total accommodation costs."},
                         "food": {"type": ["number", "null"], "description": "Total food & dining costs."},
                         "activities": {"type": ["number", "null"], "description": "Total activity & entrance-fee costs."},
-                        "transport": {"type": ["number", "null"], "description": "Local transport costs (taxis, trains, buses)."},
+                        "transport": {"type": ["number", "null"], "description": "Local transport costs within the destination (taxis, metro, auto-rickshaw, etc.)."},
                         "total_estimated": {"type": ["number", "null"], "description": "Sum of all estimated costs."},
                     },
                 },

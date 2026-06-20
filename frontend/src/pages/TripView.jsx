@@ -447,6 +447,7 @@ export default function TripView() {
           <ChecklistPanel
             tripId={id}
             destination={tripData.destination}
+            originCountry={tripData.origin_country}
             items={tripData.checklist ?? []}
             onUpdate={updateChecklist}
           />
@@ -607,7 +608,7 @@ export default function TripView() {
 
         const enc = encodeURIComponent
         const links = [
-          ...(origin ? [{
+          ...(origin && (tripData.budget_breakdown?.flights || tripData.budget_breakdown?.travel) ? [{
             label: 'Search Flights',
             url: `https://www.google.com/travel/flights?q=flights+from+${enc(origin)}+to+${enc(dest)}+${start}+to+${end}`,
           }] : []),

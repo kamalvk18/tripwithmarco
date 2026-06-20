@@ -188,7 +188,7 @@ export default function PlanTrip() {
     return [
       `Plan my trip with these details:`,
       `Destination: ${form.destination}.`,
-      `Flying from: ${form.origin}.`,
+      `Travelling from: ${form.origin}.`,
       `Dates: ${form.startDate} to ${form.endDate} (${nights} nights).`,
       travelers > 1 ? `Traveling as a group of ${travelers} people.` : '',
       `Budget: ${form.budget} ${form.currency} per person.`,
@@ -356,7 +356,7 @@ export default function PlanTrip() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Plan a Trip</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Marco will search live flights, hotels & weather</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">Marco will research transport options, hotels & weather</p>
           </div>
         </div>
 
@@ -372,7 +372,7 @@ export default function PlanTrip() {
               />
             </div>
             <div>
-              <Label>Flying from *</Label>
+              <Label>Travelling from *</Label>
               <Input
                 placeholder="e.g. London"
                 value={form.origin}

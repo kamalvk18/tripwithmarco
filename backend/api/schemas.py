@@ -190,7 +190,8 @@ class DayPlan(BaseModel):
 
 class BudgetBreakdown(BaseModel):
     """Estimated costs per category. None means the category wasn't mentioned."""
-    flights: float | None = None
+    travel: float | None = None
+    flights: float | None = None  # legacy — old trips used this; prefer travel
     accommodation: float | None = None
     food: float | None = None
     activities: float | None = None

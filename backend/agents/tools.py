@@ -48,8 +48,9 @@ TOOL_DEFINITIONS = [
     {
         "name": "search_flights",
         "description": """Search for real-time flight prices between two airports.
-        Use this when the user asks about flights, how to get somewhere, 
-        flight costs, or when you want to include flight prices in a budget breakdown.
+        Only call this when flying is the appropriate transport mode (intercontinental routes,
+        or domestic routes where a flight genuinely saves significant time).
+        Do NOT call for journeys better served by train, bus, car, or ferry.
         Always use correct IATA airport codes.""",
         "input_schema": {
             "type": "object",

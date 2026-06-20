@@ -268,7 +268,9 @@ def generate_checklist(
 ):
     from backend.agents.planning_agent import generate_checklist as _gen
     trip = _get_or_404(trip_id, current_user["id"], member_ok=True)
-    items_raw = _gen(trip.get("destination", ""), passport_country, trip.get("start_date", ""))
+    # Use origin_country extracted from the conversation if the caller didn't supply one
+    effective_passport = passport_country or trip.get("origin_country", "")
+    items_raw = _gen(trip.get("destination", ""), effective_passport, trip.get("start_date", ""))
     items = [ChecklistItem(id=str(uuid.uuid4()), **item) for item in items_raw]
     trip["checklist"] = [i.model_dump() for i in items]
     update_trip(trip_id, trip, current_user["id"], member_ok=True)

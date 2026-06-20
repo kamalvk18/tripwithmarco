@@ -23,31 +23,45 @@ async function apiToggle(tripId, itemId, completed) {
   return res.ok
 }
 
-export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
+export function ChecklistPanel({ tripId, destination, originCountry, items = [], onUpdate }) {
   const [open, setOpen]             = useState(false)
   const [generating, setGenerating] = useState(false)
   const [passport, setPassport]     = useState('')
-  const [showForm, setShowForm]     = useState(false)
+  const [tripType, setTripType]     = useState(null) // null | 'pick' | 'domestic' | 'international'
   const [error, setError]           = useState(null)
 
   const done  = items.filter(i => i.completed).length
   const total = items.length
 
-  async function handleGenerate(e) {
-    e.preventDefault()
+  function resetForm() {
+    setTripType(null)
+    setPassport('')
+    setError(null)
+  }
+
+  async function generate(passportArg = '') {
     setGenerating(true)
-    setShowForm(false)
     setError(null)
     try {
-      const res = await apiGenerate(tripId, passport)
+      const res = await apiGenerate(tripId, passportArg)
       onUpdate?.(res.items)
+      setTripType(null)
     } catch (err) {
       console.error(err)
       setError(err.message ?? 'Something went wrong. Is the API server running?')
-      setShowForm(true)
     } finally {
       setGenerating(false)
     }
+  }
+
+  async function handleGenerate(e) {
+    e.preventDefault()
+    await generate(tripType === 'international' ? passport : '')
+  }
+
+  // If the trip already knows the origin country, generate directly without asking
+  async function handleGenerateDirect() {
+    await generate('')  // backend will use origin_country from trip data
   }
 
   async function handleToggle(itemId, current) {
@@ -95,21 +109,36 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
                 Generate a personalised checklist: visa requirements, vaccinations,
                 insurance, documents and kit — specific to {destination}.
               </p>
-              {showForm ? (
+              {tripType === null && (
+                <Button variant="primary" size="sm" onClick={originCountry ? handleGenerateDirect : () => setTripType('pick')}>
+                  <ClipboardList size={14} /> Generate Checklist
+                </Button>
+              )}
+              {tripType === 'pick' && (
+                <div className="flex gap-2 justify-center">
+                  <Button variant="secondary" size="sm" onClick={() => setTripType('domestic')}>Domestic trip</Button>
+                  <Button variant="primary" size="sm" onClick={() => setTripType('international')}>International trip</Button>
+                </div>
+              )}
+              {tripType === 'domestic' && (
+                <form onSubmit={handleGenerate} className="flex gap-2 justify-center">
+                  <Button type="submit" variant="primary" size="sm">Generate</Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={resetForm}>Back</Button>
+                </form>
+              )}
+              {tripType === 'international' && (
                 <form onSubmit={handleGenerate} className="flex gap-2 justify-center">
                   <input
                     type="text"
-                    placeholder="Your passport country (e.g. UK)"
+                    placeholder="Your passport country (e.g. India)"
                     value={passport}
                     onChange={e => setPassport(e.target.value)}
                     className={`${inputCls} w-52`}
+                    autoFocus
                   />
                   <Button type="submit" variant="primary" size="sm">Generate</Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={resetForm}>Back</Button>
                 </form>
-              ) : (
-                <Button variant="primary" size="sm" onClick={() => setShowForm(true)}>
-                  <ClipboardList size={14} /> Generate Checklist
-                </Button>
               )}
             </div>
           )}
@@ -170,14 +199,29 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
 
               {/* Regenerate */}
               <div className="px-5 pb-4">
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(true); setOpen(true) }}
-                  className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer transition-colors"
-                >
-                  <RefreshCw size={11} /> Regenerate with different passport
-                </button>
-                {showForm && (
+                {tripType === null && (
+                  <button
+                    type="button"
+                    onClick={originCountry ? handleGenerateDirect : () => setTripType('pick')}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer transition-colors"
+                  >
+                    <RefreshCw size={11} /> Regenerate checklist
+                  </button>
+                )}
+                {tripType === 'pick' && (
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="secondary" size="sm" onClick={() => setTripType('domestic')}>Domestic trip</Button>
+                    <Button variant="primary" size="sm" onClick={() => setTripType('international')}>International trip</Button>
+                    <Button variant="secondary" size="sm" onClick={resetForm}>Cancel</Button>
+                  </div>
+                )}
+                {tripType === 'domestic' && (
+                  <form onSubmit={handleGenerate} className="flex gap-2 mt-2">
+                    <Button type="submit" variant="primary" size="sm">Regenerate</Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={resetForm}>Cancel</Button>
+                  </form>
+                )}
+                {tripType === 'international' && (
                   <form onSubmit={handleGenerate} className="flex gap-2 mt-2">
                     <input
                       type="text"
@@ -185,8 +229,10 @@ export function ChecklistPanel({ tripId, destination, items = [], onUpdate }) {
                       value={passport}
                       onChange={e => setPassport(e.target.value)}
                       className={`${inputCls} flex-1`}
+                      autoFocus
                     />
                     <Button type="submit" variant="primary" size="sm">Regenerate</Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={resetForm}>Cancel</Button>
                   </form>
                 )}
               </div>

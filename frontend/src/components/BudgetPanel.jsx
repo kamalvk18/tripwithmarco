@@ -1,12 +1,23 @@
 import { formatMoney } from '@/lib/utils'
 
 const CATEGORY_ICONS = {
-  flights:       '✈️',
+  travel:        '🚆',
+  flights:       '✈️',  // legacy key from old trips
   accommodation: '🏨',
   food:          '🍽️',
   activities:    '🎟️',
   transport:     '🚌',
   misc:          '💼',
+}
+
+const CATEGORY_LABELS = {
+  travel:        'Travel',
+  flights:       'Flights',
+  accommodation: 'Accommodation',
+  food:          'Food',
+  activities:    'Activities',
+  transport:     'Local transport',
+  misc:          'Misc',
 }
 
 export function BudgetPanel({ breakdown, userBudget, currency }) {
@@ -41,7 +52,7 @@ export function BudgetPanel({ breakdown, userBudget, currency }) {
           return (
             <div key={key}>
               <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-slate-500 dark:text-slate-400">{icon} {key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                <span className="text-slate-500 dark:text-slate-400">{icon} {CATEGORY_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1)}</span>
                 <span className="text-slate-700 dark:text-slate-200 font-medium">{formatMoney(val, currency)}</span>
               </div>
               <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">

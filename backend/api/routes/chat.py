@@ -160,13 +160,17 @@ async def extract_info(req: ExtractRequest, _: dict = Depends(check_claude_limit
     itinerary = extract_itinerary(raw_messages)
     structured = extract_structured_itinerary(itinerary, currency=req.currency)
     raw_budget = extracted.get("budget")
+    # Strip null values so the frontend hasBreakdown check works correctly
+    raw_breakdown = structured.get("budget_breakdown") or {}
+    clean_breakdown = {k: v for k, v in raw_breakdown.items() if v is not None}
     return ExtractResponse(
         destination=extracted.get("destination", ""),
         city=extracted.get("city", ""),
         country_code=extracted.get("country_code", ""),
+        origin_country=extracted.get("origin_country", ""),
         start_date=extracted.get("start_date", ""),
         end_date=extracted.get("end_date", ""),
         budget=float(raw_budget) if raw_budget is not None else None,
         days=structured.get("days", []),
-        budget_breakdown=structured.get("budget_breakdown", {}),
+        budget_breakdown=clean_breakdown,
     )

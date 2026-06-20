@@ -303,6 +303,7 @@ export default function PlanTrip() {
         end_date:      finalEnd,
         city:          extracted.city || form.destination,
         country_code:  extracted.country_code || form.destinationCountryCode || '',
+        origin_country: extracted.origin_country || '',
         budget:        parseFloat(form.budget) || 0,
         currency:      form.currency,
         number_of_travelers: form.numberOfTravelers || 1,
@@ -613,7 +614,7 @@ export default function PlanTrip() {
                 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 flex-1">
                 <div className="prose prose-sm max-w-none
                   prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(lastMarcoMsg.content)}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{stripOptions(lastMarcoMsg.content)}</ReactMarkdown>
                 </div>
               </div>
             </div>
@@ -702,7 +703,7 @@ export default function PlanTrip() {
                 ? (
                   <div className="prose prose-sm max-w-none
                     prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(msg.content)}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{stripOptions(msg.content)}</ReactMarkdown>
                   </div>
                 )
                 : msg.content
@@ -740,7 +741,7 @@ export default function PlanTrip() {
               px-4 py-3 text-sm max-w-[88%] text-slate-700 dark:text-slate-200">
               <div className="prose prose-sm max-w-none
                 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 streaming-cursor">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripOptions(streamingText)}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{stripOptions(streamingText)}</ReactMarkdown>
               </div>
             </div>
           </div>

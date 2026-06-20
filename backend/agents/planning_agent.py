@@ -61,34 +61,39 @@ Return ONLY a JSON object with these exact fields:
 
 No markdown, no explanation. JSON object only."""
 
-_CHECKLIST_SYSTEM = """You are a pre-trip checklist generator for travellers.
+_CHECKLIST_SYSTEM = """You are a pre-trip checklist generator. Your job is to return only the items a traveller would genuinely regret not having. If in doubt, leave it out.
 
-CRITICAL CONTEXT RULES — apply these before generating any item:
-1. DOMESTIC TRAVEL: If the destination country matches the passport/citizenship country (e.g. Indian citizen → Ladakh/India, US citizen → New York, etc.) this is a DOMESTIC trip. For domestic travel:
-   - Do NOT include visa items (no visa needed for domestic travel)
-   - Do NOT suggest getting a local SIM card (they already have one)
-   - Do NOT suggest exchanging currency (they already have local currency)
-   - Do NOT mention passport validity for domestic travel (passport not required)
-   - Do NOT suggest emergency copies of passport for simple domestic trips
-   - Focus instead on: health precautions specific to the region, insurance, offline maps, region-specific kit
-2. INTERNATIONAL TRAVEL: Include visa, passport validity, SIM card, currency, and entry requirement items.
-3. ALTITUDE / TERRAIN: For high-altitude destinations (e.g. Ladakh, Tibet, Nepal, Andes, Alps) always include altitude sickness prevention as HIGH priority.
-4. Be intelligent — don't generate boilerplate that doesn't apply. Each item must be genuinely useful for this specific traveller.
+RULES — apply every rule before generating any item:
+
+1. DOMESTIC TRAVEL (destination country = passport country):
+   - NEVER include: passport, visa, power adaptor, SIM card, currency exchange, yellow fever, malaria tablets (unless the specific region is a known risk zone)
+   - Only include: insurance, booking confirmations, destination-specific kit, genuinely relevant health notes
+
+2. INTERNATIONAL TRAVEL: include passport validity, visa, SIM card, currency.
+
+3. DESTINATION TYPE — be brutally honest about what this place actually requires:
+   - Well-developed tourist city (Udaipur, Jaipur, Bangkok, Lisbon, Tokyo): skip doctor visits, water purification, medical evacuation. These cities have pharmacies, hospitals, and clean hotels. One health item max, only if the season or region genuinely warrants it.
+   - Remote / off-grid / adventure (Ladakh, rural Nepal, Amazon, Sahara): water purification, medical kit, doctor consult are appropriate.
+   - High altitude (>3500m — Ladakh, Tibet, high Andes): altitude sickness item, HIGH priority.
+   - Monsoon season: one practical wet-weather kit item is fine. Do not dramatise it.
+
+4. THE CUT TEST — before adding any item, ask: "Would a sensible, experienced traveller actually need reminding of this?" If the answer is no, skip it.
+   - Skip: generic advice anyone knows ("stay hydrated", "bring sunscreen", "keep documents safe")
+   - Skip: items that don't apply to this specific destination/season/traveller
+   - Skip: redundant items (don't list both "waterproof jacket" and "quick-dry clothes" unless both genuinely add value)
 
 Return ONLY valid JSON — an array of objects, no prose, no markdown fences:
-[
-  {"category": "health", "item": "Consult doctor about altitude sickness medication", "priority": "high"}
-]
+[{"category": "kit", "item": "Waterproof bag for electronics during monsoon", "priority": "high"}]
 
-Categories (only include relevant ones):
-- visa: entry requirements, e-visa, on-arrival (SKIP for domestic travel)
-- health: vaccinations, altitude sickness, medication, travel clinic
-- insurance: travel insurance, medical evacuation cover
-- documents: passport validity (international only), copies of essential docs, emergency contacts
-- kit: power adaptor, offline maps, gear specific to destination climate/terrain
+Categories (only include if genuinely relevant):
+- visa: entry requirements (SKIP for domestic)
+- health: real health risk for this specific destination only
+- insurance: always include one insurance item
+- documents: booking confirmations; passport validity for international only
+- kit: destination/season-specific gear only
 
-Keep each item under 12 words. Return 8-15 items total.
-Priority MUST be one of: "high", "normal", "low". Do not use "medium" or any other value."""
+Return 5-8 items total. Fewer is better. Every item must earn its place.
+Priority MUST be one of: "high", "normal", "low"."""
 
 _PREFERENCES_SYSTEM = """Extract 3-6 specific travel preference signals from the post-trip debrief provided.
 Each signal should be a short, concrete statement (under 10 words) about the traveller's likes, dislikes, or patterns — things that should inform future trip planning.

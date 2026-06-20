@@ -21,7 +21,12 @@ const CATEGORY_LABELS = {
 }
 
 export function BudgetPanel({ breakdown, userBudget, currency }) {
-  const hasBreakdown = breakdown && Object.keys(breakdown).length > 0
+  const categories = breakdown
+    ? Object.entries(breakdown).filter(([k, v]) => k !== 'total_estimated' && v != null)
+    : []
+  const total = breakdown?.total_estimated ?? 0
+  // Has usable data if there are category bars OR a real total estimate
+  const hasBreakdown = categories.length > 0 || total > 0
 
   if (!hasBreakdown && !(userBudget > 0)) return null
 
@@ -37,9 +42,7 @@ export function BudgetPanel({ breakdown, userBudget, currency }) {
     )
   }
 
-  const total = breakdown.total_estimated ?? 0
   const overage = userBudget ? total - userBudget : 0
-  const categories = Object.entries(breakdown).filter(([k]) => k !== 'total_estimated')
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm p-5">

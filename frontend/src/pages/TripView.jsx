@@ -478,7 +478,7 @@ export default function TripView() {
           </div>
           {rebuildText && (
             <div className={`prose prose-sm max-w-none text-slate-700 dark:text-slate-300 ${streaming ? 'streaming-cursor' : ''}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{rebuildText}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{rebuildText}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -493,7 +493,7 @@ export default function TripView() {
           </div>
           {debriefText && (
             <div className="prose prose-sm max-w-none text-slate-700 dark:text-slate-300 streaming-cursor">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{debriefText}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{debriefText}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -506,7 +506,7 @@ export default function TripView() {
             📋 Post-Trip Debrief
           </p>
           <div className="prose prose-sm max-w-none text-slate-700 dark:text-slate-300">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{tripData.debrief}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{tripData.debrief}</ReactMarkdown>
           </div>
           {tripData.preferences?.length > 0 && (
             <div className="mt-4 pt-4 border-t border-violet-200 dark:border-violet-700">
@@ -560,7 +560,7 @@ export default function TripView() {
           </div>
           {(nearMeText || tripData.near_me_response) && (
             <div className={`prose prose-sm max-w-none text-slate-700 dark:text-slate-300 ${nearMeActive ? 'streaming-cursor' : ''}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{nearMeText || tripData.near_me_response}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{nearMeText || tripData.near_me_response}</ReactMarkdown>
             </div>
           )}
         </div>

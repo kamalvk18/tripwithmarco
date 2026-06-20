@@ -39,7 +39,7 @@ def main():
         print(f"🌍 Starting Marco API on http://localhost:{port} ...")
         print("   Docs at http://localhost:8000/docs")
         subprocess.run(
-            ["uvicorn", "backend.api.app:app", "--reload", "--port", port],
+            ["uv", "run", "python", "-m", "uvicorn", "backend.api.app:app", "--reload", "--port", port],
             check=True,
         )
 
@@ -52,7 +52,7 @@ def main():
         port = "8000"
         print(f"🚀 Starting API server on http://localhost:{port} ...")
         api_proc = subprocess.Popen(
-            ["uvicorn", "backend.api.app:app", "--port", port],
+            ["uv", "run", "python", "-m", "uvicorn", "backend.api.app:app", "--port", port],
         )
         if _wait_for_api(f"http://localhost:{port}"):
             print(f"   ✅ API ready — docs at http://localhost:{port}/docs")

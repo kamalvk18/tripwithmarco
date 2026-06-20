@@ -36,7 +36,7 @@ function TimelineView({ timeline }) {
     <div className="mt-4 space-y-4">
       {timeline.intro && (
         <div className="prose prose-sm max-w-none text-slate-600 dark:text-slate-400">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{timeline.intro}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{timeline.intro}</ReactMarkdown>
         </div>
       )}
 
@@ -65,7 +65,7 @@ function TimelineView({ timeline }) {
                     <div className="prose prose-sm max-w-none text-slate-700 dark:text-slate-300
                       [&_ul]:mt-1 [&_ul]:space-y-1 [&_li]:leading-snug
                       [&_p]:mb-1 [&_strong]:text-slate-800 dark:[&_strong]:text-slate-200">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{slot.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{slot.content}</ReactMarkdown>
                     </div>
                   )}
                 </div>
@@ -194,7 +194,7 @@ export function DayCard({ day, isToday, isRebuilt, destination }) {
             <TimelineView timeline={timeline} />
           ) : (
             <div className="prose prose-sm max-w-none mt-4 text-slate-700 dark:text-slate-300">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{day.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{day.content}</ReactMarkdown>
             </div>
           )}
         </div>

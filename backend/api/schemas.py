@@ -66,6 +66,7 @@ class TripDetail(BaseModel):
     end_date: str = ""
     city: str = ""
     country_code: str = ""
+    origin_country: str = ""
     budget: float | None = None
     currency: str | None = None
     budget_breakdown: dict[str, Any] | None = None
@@ -210,11 +211,12 @@ class ExtractResponse(BaseModel):
     destination: str = ""
     city: str = ""
     country_code: str = ""
+    origin_country: str = ""
     start_date: str = ""
     end_date: str = ""
     budget: float | None = None
     days: list[DayPlan] = Field(default_factory=list)
-    budget_breakdown: BudgetBreakdown = Field(default_factory=BudgetBreakdown)
+    budget_breakdown: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Sharing ───────────────────────────────────────────────────────────────────

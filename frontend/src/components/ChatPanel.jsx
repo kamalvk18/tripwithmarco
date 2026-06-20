@@ -35,7 +35,7 @@ function Bubble({ role, content, isStreaming }) {
       >
         {isMarco ? (
           <div className="prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{displayContent}</ReactMarkdown>
           </div>
         ) : (
           <p className="whitespace-pre-wrap">{displayContent}</p>

@@ -19,12 +19,51 @@ AI-powered travel planning app built around **Marco** — an opinionated travel 
 
 ---
 
+## Screenshots
+
+**Trip planning form**
+
+![Trip planning form](docs/screenshots/Screenshot%202026-06-22%20at%201.15.15%20PM.png)
+
+**Trip overview & budget estimate**
+
+![Trip overview](docs/screenshots/Screenshot%202026-06-22%20at%201.15.34%20PM.png)
+
+**Day-by-day itinerary**
+
+![Itinerary expanded](docs/screenshots/Screenshot%202026-06-22%20at%201.17.26%20PM.png)
+
+![Itinerary with booking links and Ask Marco](docs/screenshots/Screenshot%202026-06-22%20at%201.17.43%20PM.png)
+
+**Interactive map & daily briefing email**
+
+![Map and briefing email](docs/screenshots/Screenshot%202026-06-22%20at%201.17.12%20PM.png)
+
+**Expense tracking & pre-trip checklist**
+
+![Expenses and checklist](docs/screenshots/Screenshot%202026-06-22%20at%201.16.24%20PM.png)
+
+**Trip sharing**
+
+![Trip sharing and invite link](docs/screenshots/Screenshot%202026-06-22%20at%201.15.57%20PM.png)
+
+**Companion mode — active trip**
+
+![Active trip with companion mode](docs/screenshots/Screenshot%202026-06-22%20at%201.24.37%20PM.png)
+
+![Companion mode itinerary detail](docs/screenshots/Screenshot%202026-06-22%20at%201.25.02%20PM.png)
+
+![Companion mode chat](docs/screenshots/Screenshot%202026-06-22%20at%201.25.17%20PM.png)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| LLM — Planning & Companion | Claude Sonnet 4.6 (streaming, tool use) |
-| LLM — Extraction | Claude Haiku 4.5 |
+| LLM — Planning & Companion | Configurable via `LLM_MODEL` (default: Claude Sonnet 4.6); streamed with tool use |
+| LLM — Extraction | Configurable via `LLM_FAST_MODEL` (default: Claude Haiku 4.5) |
+| LLM Provider | [LiteLLM](https://github.com/BerriAI/litellm) — provider-agnostic; works with Anthropic, DeepSeek, OpenAI-compatible gateways, etc. |
 | Frontend | React 19 + Vite + Tailwind CSS v4 |
 | API | FastAPI + Uvicorn |
 | Persistence | SQLite via SQLAlchemy (swappable to Postgres via `DATABASE_URL`) |
@@ -46,14 +85,25 @@ cd frontend && npm install
 **2. Configure `.env`**
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-...
+# Required
 OPENWEATHER_API_KEY=...
 SERPAPI_KEY=...
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 JWT_SECRET=<random-secret>
 FRONTEND_URL=http://localhost:5173
-RESEND_API_KEY=...     # optional — daily briefing emails only
+
+# LLM — Anthropic (default)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# LLM — override to use a different provider (all optional)
+# LLM_MODEL=deepseek/deepseek-chat          # LiteLLM model string
+# LLM_FAST_MODEL=deepseek/deepseek-chat     # for quick extraction tasks
+# LLM_BASE_URL=https://ai-gateway.vercel.sh/v1   # custom/gateway endpoint
+# LLM_API_KEY=<gateway-token>               # replaces provider-specific key
+
+# Optional
+RESEND_API_KEY=...     # daily briefing emails only
 ```
 
 | Key | Source | Cost |
@@ -63,6 +113,26 @@ RESEND_API_KEY=...     # optional — daily briefing emails only
 | `SERPAPI_KEY` | [serpapi.com](https://serpapi.com) | Free tier: 250 searches/month |
 | `RESEND_API_KEY` | [resend.com](https://resend.com) | Free tier: 3,000 emails/month |
 | `GOOGLE_CLIENT_ID/SECRET` | [Google Cloud Console](https://console.cloud.google.com) → OAuth 2.0 | Free |
+| `LLM_MODEL` / `LLM_FAST_MODEL` | Any [LiteLLM-supported model string](https://docs.litellm.ai/docs/providers) | Varies |
+| `LLM_BASE_URL` / `LLM_API_KEY` | Your gateway provider (e.g. Vercel AI Gateway) | Varies |
+
+**Alternative providers**
+
+LiteLLM handles provider routing — swap the model without touching code:
+
+```env
+# DeepSeek via Vercel AI Gateway
+LLM_MODEL=deepseek/deepseek-chat
+LLM_FAST_MODEL=deepseek/deepseek-chat
+LLM_BASE_URL=https://ai-gateway.vercel.sh/v1
+LLM_API_KEY=<your-vercel-ai-gateway-token>
+
+# Direct DeepSeek API
+LLM_MODEL=deepseek/deepseek-chat
+DEEPSEEK_API_KEY=sk-...
+```
+
+> **Note:** Thinking/reasoning models (e.g. DeepSeek-R1) cannot be used as `LLM_FAST_MODEL` because extraction calls use `tool_choice`, which those models don't support.
 
 **3. Run**
 
@@ -102,6 +172,9 @@ FastAPI  (/api/trips, /api/chat/stream, /api/auth, ...)
     ▼
 planning_agent.py → run_agentic_loop()
     │
+    ├── llm.py (LiteLLM) → LLM_MODEL / LLM_FAST_MODEL
+    │       └── Anthropic / DeepSeek / OpenAI-compatible gateway
+    │
     ├── tool_use → execute_tool()
     │       ├── search_flights()   → SerpApi
     │       ├── search_hotels()    → SerpApi
@@ -112,3 +185,5 @@ planning_agent.py → run_agentic_loop()
 ```
 
 Tool results are disk-cached (weather: 1h, flights/hotels: 6h, places: 24h) to avoid redundant API calls.
+
+The LLM layer (`backend/llm.py`) wraps LiteLLM so no provider SDK is imported directly anywhere else. Switching providers only requires changing env vars — no code changes needed.

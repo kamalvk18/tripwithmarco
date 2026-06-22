@@ -14,8 +14,12 @@ export function tripStatus(trip) {
 
   if (!trip.start_date || !trip.end_date) return { status: 'unknown', label: '' }
 
-  const start = new Date(trip.start_date)
-  const end   = new Date(trip.end_date)
+  // Parse date-only strings as local midnight, not UTC midnight.
+  // new Date("YYYY-MM-DD") is parsed as UTC by spec, which shifts the date
+  // for users in UTC+ timezones and breaks active/upcoming comparisons.
+  const parseLocal = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
+  const start = parseLocal(trip.start_date)
+  const end   = parseLocal(trip.end_date)
 
   if (today < start) {
     const days = Math.round((start - today) / 86400000)

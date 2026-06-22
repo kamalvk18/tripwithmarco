@@ -97,14 +97,23 @@ def _is_member(session, trip_id: str, user_id: int) -> bool:
 
 def save_trip(trip_data: dict, user_id: int | None = None) -> str:
     """Persist a new trip. Returns the generated trip_id."""
-    trip_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now = datetime.now()
+    trip_id = now.strftime("%Y%m%d_%H%M%S_") + f"{now.microsecond // 1000:03d}"
     trip_data["trip_id"] = trip_id
-    trip_data["saved_at"] = datetime.now().isoformat()
+    trip_data["saved_at"] = now.isoformat()
     # Strip transient fields before persisting
     clean = {k: v for k, v in trip_data.items() if k not in _TRANSIENT_FIELDS}
     with SessionLocal() as session:
-        session.add(_trip_to_row(trip_id, clean, user_id))
-        session.commit()
+        try:
+            session.add(_trip_to_row(trip_id, clean, user_id))
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            # Extremely unlikely collision — add more entropy
+            trip_id = trip_id + f"_{secrets.token_hex(4)}"
+            clean["trip_id"] = trip_id
+            session.add(_trip_to_row(trip_id, clean, user_id))
+            session.commit()
     return trip_id
 
 

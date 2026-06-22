@@ -33,6 +33,29 @@ def _count_today(user_id: int, endpoint: str, method: str = "POST") -> int:
         ).scalar() or 0
 
 
+def _count_today_prefix(user_id: int, prefix: str, method: str = "POST") -> int:
+    """Count requests today where endpoint starts with the given prefix."""
+    with SessionLocal() as session:
+        return session.query(func.count(UsageLog.id)).filter(
+            UsageLog.user_id == user_id,
+            UsageLog.endpoint.like(f"{prefix}%"),
+            UsageLog.method == method,
+            UsageLog.status_code < 400,
+            UsageLog.created_at >= _today_start_utc(),
+        ).scalar() or 0
+
+
+def _ai_request_count(user_id: int) -> int:
+    """Total AI-backed requests today across all Claude-consuming endpoints."""
+    return (
+        _count_today(user_id, "/api/chat/stream")
+        + _count_today(user_id, "/api/chat")
+        + _count_today(user_id, "/api/chat/extract")
+        + _count_today_prefix(user_id, "/api/trips/", method="POST")  # checklist
+        + _count_today_prefix(user_id, "/api/trips/", method="PATCH")  # debrief, etc.
+    )
+
+
 def check_trip_limit(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("is_admin"):
         return current_user
@@ -64,17 +87,11 @@ def check_chat_limit(current_user: dict = Depends(get_current_user)) -> dict:
 
 
 def check_claude_limit(current_user: dict = Depends(get_current_user)) -> dict:
-    """Lightweight rate limit for endpoints that make a single Claude Haiku call.
-    Shares the same daily budget as chat to prevent abuse via checklist/debrief loops.
-    """
+    """Shared daily budget for all Claude-backed endpoints (chat, checklist, debrief, extract)."""
     if current_user.get("is_admin"):
         return current_user
     limit = int(os.getenv("DAILY_CHAT_LIMIT", "20"))
-    count = (
-        _count_today(current_user["id"], "/api/chat/stream")
-        + _count_today(current_user["id"], "/api/chat")
-        + _count_today(current_user["id"], "/api/chat/extract")
-    )
+    count = _ai_request_count(current_user["id"])
     if count >= limit:
         raise HTTPException(
             status_code=429,

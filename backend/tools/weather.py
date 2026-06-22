@@ -19,7 +19,7 @@ def get_weather_forecast(city: str, country_code: str = "") -> dict:
 
     try:
         # Step 1 — Get coordinates for the city
-        geo_url = "http://api.openweathermap.org/geo/1.0/direct"
+        geo_url = "https://api.openweathermap.org/geo/1.0/direct"
         q = f"{city},{country_code}" if country_code else city
         geo_params = {"q": q, "limit": 1, "appid": api_key}
 
@@ -34,7 +34,7 @@ def get_weather_forecast(city: str, country_code: str = "") -> dict:
         lon = geo_data[0]["lon"]
 
         # Step 2 — Get 5-day forecast (8 readings/day × 5 days = 40 entries)
-        forecast_url = "http://api.openweathermap.org/data/2.5/forecast"
+        forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
         forecast_params = {
             "lat": lat,
             "lon": lon,

@@ -46,26 +46,37 @@ def _spent_total(spending: list[dict]) -> float:
     return sum(e.get("amount", 0) for e in spending)
 
 
+def _esc(text: str) -> str:
+    """HTML-escape user-supplied text before embedding in email HTML."""
+    return (
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;")
+    )
+
+
 def _md_to_html(md: str) -> str:
     """Minimal Markdown → HTML (bold, italic, bullets). No external deps."""
     lines = []
     in_ul = False
     for line in md.splitlines():
         stripped = line.strip()
-        # Headings
+        # Headings — escape content but keep the heading tag
         if stripped.startswith("### "):
             if in_ul: lines.append("</ul>"); in_ul = False
-            lines.append(f"<h3>{stripped[4:]}</h3>")
+            lines.append(f"<h3>{_esc(stripped[4:])}</h3>")
         elif stripped.startswith("## "):
             if in_ul: lines.append("</ul>"); in_ul = False
-            lines.append(f"<h2>{stripped[3:]}</h2>")
+            lines.append(f"<h2>{_esc(stripped[3:])}</h2>")
         elif stripped.startswith("# "):
             if in_ul: lines.append("</ul>"); in_ul = False
-            lines.append(f"<h1>{stripped[2:]}</h1>")
+            lines.append(f"<h1>{_esc(stripped[2:])}</h1>")
         # Bullets
         elif stripped.startswith(("- ", "* ", "• ")):
             if not in_ul: lines.append("<ul>"); in_ul = True
-            content = stripped[2:]
+            content = _esc(stripped[2:])
             content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
             content = re.sub(r'\*(.+?)\*',     r'<em>\1</em>',          content)
             lines.append(f"<li>{content}</li>")
@@ -74,7 +85,8 @@ def _md_to_html(md: str) -> str:
             lines.append("<br>")
         else:
             if in_ul: lines.append("</ul>"); in_ul = False
-            text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', stripped)
+            text = _esc(stripped)
+            text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
             text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>',          text)
             lines.append(f"<p>{text}</p>")
     if in_ul:
@@ -133,7 +145,7 @@ def _build_html(
 <div class="wrap">
   <div class="header">
     <h1>☀️ Good morning — Day {day_number} of {total_days}</h1>
-    <p>{destination} · {date.today().strftime("%A, %B %-d")}</p>
+    <p>{_esc(destination)} · {date.today().strftime("%A, %B %-d")}</p>
   </div>
 
   <div class="section">

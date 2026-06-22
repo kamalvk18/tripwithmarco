@@ -35,7 +35,7 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from backend.auth.deps import get_current_user
 from backend.api.rate_limit import check_trip_limit, check_claude_limit
 from backend.db.trip_store import (
@@ -344,9 +344,17 @@ def save_debrief(trip_id: str, body: DebriefRequest, current_user: dict = Depend
 # ── Email briefing config ─────────────────────────────────────────────────────
 
 class EmailConfigRequest(BaseModel):
-    email:     str
-    send_time: str = "07:00"
+    email:     str = Field(..., max_length=254)
+    send_time: str = Field("07:00", pattern=r"^\d{2}:\d{2}$")
     enabled:   bool = True
+
+    @field_validator("email")
+    @classmethod
+    def _valid_email(cls, v: str) -> str:
+        import re
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Invalid email address")
+        return v.lower().strip()
 
 
 @router.post("/{trip_id}/email-config", response_model=OkResponse)
@@ -358,7 +366,10 @@ def set_email_config(trip_id: str, body: EmailConfigRequest, current_user: dict 
 
 
 @router.post("/{trip_id}/send-briefing", response_model=OkResponse)
-def send_briefing_now(trip_id: str, to_email: str = Body(..., embed=True), current_user: dict = Depends(get_current_user)):
+def send_briefing_now(trip_id: str, to_email: str = Body(..., embed=True, max_length=254), current_user: dict = Depends(get_current_user)):
+    import re
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", to_email):
+        raise HTTPException(status_code=422, detail="Invalid email address")
     from backend.email.briefing import send_briefing
     _get_or_404(trip_id, current_user["id"], member_ok=False)  # ownership check
     success = send_briefing(trip_id, to_email)

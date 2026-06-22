@@ -67,18 +67,26 @@ export function buildICS(tripData, days) {
   return lines.join('\r\n')
 }
 
+function escHtml(str) {
+  return (str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
+
 /** Build a self-contained offline HTML string. */
 export function buildOfflineHTML(tripData, days) {
   const dayBlocks = days.map(day => {
-    const content = (tripData.day_overrides?.[String(day.num)] ?? day.content)
-      .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const content = escHtml(tripData.day_overrides?.[String(day.num)] ?? day.content)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br>')
     const rebuilt = tripData.day_overrides?.[String(day.num)] ? ' 🔄' : ''
     return `
       <details>
-        <summary><strong>Day ${day.num}${rebuilt}</strong> — ${day.title ?? ''}</summary>
+        <summary><strong>Day ${day.num}${rebuilt}</strong> — ${escHtml(day.title ?? '')}</summary>
         <div class="day-content">${content}</div>
       </details>`
   }).join('\n')
@@ -88,7 +96,7 @@ export function buildOfflineHTML(tripData, days) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${tripData.destination} — Itinerary</title>
+  <title>${escHtml(tripData.destination)} — Itinerary</title>
   <style>
     :root { --bg:#0f1117; --fg:#e2e8f0; --border:#2e3248; --accent:#6366f1; --surface:#1a1d27; }
     @media(prefers-color-scheme:light){ :root{--bg:#f8f9fa;--fg:#1e293b;--border:#e2e8f0;--surface:#fff;} }
@@ -103,8 +111,8 @@ export function buildOfflineHTML(tripData, days) {
   </style>
 </head>
 <body>
-  <h1>${tripData.destination}</h1>
-  <p class="meta">${tripData.dates} &bull; Saved offline by Marco</p>
+  <h1>${escHtml(tripData.destination)}</h1>
+  <p class="meta">${escHtml(tripData.dates)} &bull; Saved offline by Marco</p>
   ${dayBlocks}
 </body>
 </html>`

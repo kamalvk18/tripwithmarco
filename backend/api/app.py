@@ -30,6 +30,8 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+_MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+
 # load_dotenv must run before any backend imports — jwt_utils checks JWT_SECRET at import time
 from dotenv import load_dotenv
 load_dotenv()
@@ -83,6 +85,19 @@ def _extract_user_id(request: Request) -> int | None:
         return None
 
 
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Reject bodies larger than _MAX_BODY_BYTES before they reach any route handler."""
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_BODY_BYTES:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body too large (max 5 MB)"},
+            )
+        return await call_next(request)
+
+
 class UsageLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         import asyncio
@@ -121,6 +136,7 @@ app = FastAPI(
 )
 
 # ── Middleware (order matters: outermost added last runs first) ────────────────
+app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(UsageLogMiddleware)
 
 _cors_origins = [

@@ -2,6 +2,7 @@
 Pydantic request/response models for the Marco API.
 """
 
+import re
 from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
@@ -17,6 +18,8 @@ class Message(BaseModel):
     def _cap_content(cls, v: Any) -> Any:
         if isinstance(v, str) and len(v) > 32_000:
             raise ValueError("Message content exceeds 32,000 character limit")
+        if isinstance(v, list) and len(v) > 50:
+            raise ValueError("Message content list exceeds 50 items")
         return v
 
 
@@ -101,22 +104,38 @@ class OkResponse(BaseModel):
 
 EXPENSE_CATEGORIES = ["flights", "accommodation", "food", "activities", "transport", "misc"]
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 
 class ExpenseSplit(BaseModel):
     """One member's share of an expense."""
     user_id: int
-    name: str = ""
-    amount: float
+    name: str = Field("", max_length=200)
+    amount: float = Field(..., gt=0, le=1_000_000)
 
 
 class ExpenseCreate(BaseModel):
     """Body for POST /trips/{trip_id}/expenses."""
     category: str
-    amount: float
-    description: str = ""
-    date: str = ""          # ISO date string, defaults to today on server
+    amount: float = Field(..., gt=0, le=1_000_000)
+    description: str = Field("", max_length=500)
+    date: str = Field("", max_length=10)
     paid_by_user_id: int | None = None   # defaults to current user
-    splits: list[ExpenseSplit] = Field(default_factory=list)
+    splits: list[ExpenseSplit] = Field(default_factory=list, max_length=50)
+
+    @field_validator("category")
+    @classmethod
+    def _valid_category(cls, v: str) -> str:
+        if v not in EXPENSE_CATEGORIES:
+            raise ValueError(f"category must be one of: {', '.join(EXPENSE_CATEGORIES)}")
+        return v
+
+    @field_validator("date")
+    @classmethod
+    def _valid_date(cls, v: str) -> str:
+        if v and not _DATE_RE.match(v):
+            raise ValueError("date must be in YYYY-MM-DD format")
+        return v
 
 
 class Expense(BaseModel):
@@ -138,9 +157,16 @@ class Expense(BaseModel):
 class SettlementCreate(BaseModel):
     """Body for POST /trips/{trip_id}/settlements — current user pays to_user_id."""
     to_user_id: int
-    amount: float
-    note: str = ""
-    date: str = ""
+    amount: float = Field(..., gt=0, le=1_000_000)
+    note: str = Field("", max_length=500)
+    date: str = Field("", max_length=10)
+
+    @field_validator("date")
+    @classmethod
+    def _valid_date(cls, v: str) -> str:
+        if v and not _DATE_RE.match(v):
+            raise ValueError("date must be in YYYY-MM-DD format")
+        return v
 
 
 class Settlement(BaseModel):

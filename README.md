@@ -23,37 +23,37 @@ AI-powered travel planning app built around **Marco** — an opinionated travel 
 
 **Trip planning form**
 
-![Trip planning form](docs/screenshots/Screenshot%202026-06-22%20at%201.15.15%20PM.png)
+![Trip planning form](docs/screenshots/Screenshot%202026-06-22%20at%201.15.15%E2%80%AFPM.png)
 
 **Trip overview & budget estimate**
 
-![Trip overview](docs/screenshots/Screenshot%202026-06-22%20at%201.15.34%20PM.png)
+![Trip overview](docs/screenshots/Screenshot%202026-06-22%20at%201.15.34%E2%80%AFPM.png)
 
 **Day-by-day itinerary**
 
-![Itinerary expanded](docs/screenshots/Screenshot%202026-06-22%20at%201.17.26%20PM.png)
+![Itinerary expanded](docs/screenshots/Screenshot%202026-06-22%20at%201.17.26%E2%80%AFPM.png)
 
-![Itinerary with booking links and Ask Marco](docs/screenshots/Screenshot%202026-06-22%20at%201.17.43%20PM.png)
+![Itinerary with booking links and Ask Marco](docs/screenshots/Screenshot%202026-06-22%20at%201.17.43%E2%80%AFPM.png)
 
 **Interactive map & daily briefing email**
 
-![Map and briefing email](docs/screenshots/Screenshot%202026-06-22%20at%201.17.12%20PM.png)
+![Map and briefing email](docs/screenshots/Screenshot%202026-06-22%20at%201.17.12%E2%80%AFPM.png)
 
 **Expense tracking & pre-trip checklist**
 
-![Expenses and checklist](docs/screenshots/Screenshot%202026-06-22%20at%201.16.24%20PM.png)
+![Expenses and checklist](docs/screenshots/Screenshot%202026-06-22%20at%201.16.24%E2%80%AFPM.png)
 
 **Trip sharing**
 
-![Trip sharing and invite link](docs/screenshots/Screenshot%202026-06-22%20at%201.15.57%20PM.png)
+![Trip sharing and invite link](docs/screenshots/Screenshot%202026-06-22%20at%201.15.57%E2%80%AFPM.png)
 
 **Companion mode — active trip**
 
-![Active trip with companion mode](docs/screenshots/Screenshot%202026-06-22%20at%201.24.37%20PM.png)
+![Active trip with companion mode](docs/screenshots/Screenshot%202026-06-22%20at%201.24.37%E2%80%AFPM.png)
 
-![Companion mode itinerary detail](docs/screenshots/Screenshot%202026-06-22%20at%201.25.02%20PM.png)
+![Companion mode itinerary detail](docs/screenshots/Screenshot%202026-06-22%20at%201.25.02%E2%80%AFPM.png)
 
-![Companion mode chat](docs/screenshots/Screenshot%202026-06-22%20at%201.25.17%20PM.png)
+![Companion mode chat](docs/screenshots/Screenshot%202026-06-22%20at%201.25.17%E2%80%AFPM.png)
 
 ---
 

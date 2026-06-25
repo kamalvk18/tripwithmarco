@@ -85,9 +85,12 @@ export default function PlanTrip() {
 
   // Past trip preferences — loaded once, injected into planning prompts
   const [pastPreferences, setPastPreferences] = useState([])
+  const [existingTrips, setExistingTrips]     = useState([])
+  const [duplicateTrip, setDuplicateTrip]     = useState(null)
   useEffect(() => {
     listTrips()
       .then(trips => {
+        setExistingTrips(trips)
         const prefs = trips
           .filter(t => t.preferences?.length > 0)
           .flatMap(t => t.preferences)
@@ -191,7 +194,7 @@ export default function PlanTrip() {
       `Travelling from: ${form.origin}.`,
       `Dates: ${form.startDate} to ${form.endDate} (${nights} nights).`,
       travelers > 1 ? `Traveling as a group of ${travelers} people.` : '',
-      `Budget: ${form.budget} ${form.currency} per person.`,
+      form.budget ? `Budget: ${form.budget} ${form.currency} per person.` : '',
       `Travel style: ${styles}.`,
       form.dietary !== 'None' ? `Dietary: ${form.dietary}.` : '',
       form.hasTwoWheelerLicence && form.hasFourWheelerLicence
@@ -237,6 +240,12 @@ export default function PlanTrip() {
       },
       onBookingData: (data) => {
         bookingDataRef.current = { ...bookingDataRef.current, ...data }
+      },
+      onEvalCorrection: () => {
+        // Discard the original response — only the corrected text that follows
+        // will be saved as the assistant message and used as the itinerary.
+        responseRef.current = ''
+        setStreamText('')
       },
       onDone: () => {
         const assistantMsg = { role: 'assistant', content: responseRef.current }
@@ -334,7 +343,14 @@ export default function PlanTrip() {
   // ── Form submit (first turn) ────────────────────────────────────────────────
   async function handleFormSubmit(e) {
     e.preventDefault()
-    if (!form.destination || !form.startDate || !form.endDate) return
+    if (!form.destination || !form.origin || !form.startDate || !form.endDate) return
+
+    const dest = form.destination.trim().toLowerCase()
+    const dupe = existingTrips
+      .filter(t => !t.is_member)
+      .find(t => t.destination?.trim().toLowerCase() === dest)
+    if (dupe) { setDuplicateTrip(dupe); return }
+
     setStarted(true)
     await sendMessage(buildPrompt(), [])
   }
@@ -361,6 +377,45 @@ export default function PlanTrip() {
             <p className="text-slate-500 dark:text-slate-400 text-sm">Marco will research transport options, hotels & weather</p>
           </div>
         </div>
+
+        {duplicateTrip && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-sm w-full p-6 border border-slate-200 dark:border-slate-700">
+              <h2 className="text-base font-bold text-slate-900 dark:text-slate-50 mb-2">Trip already exists</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
+                You already have a trip to <strong>{duplicateTrip.destination}</strong>
+                {duplicateTrip.dates ? ` (${duplicateTrip.dates})` : ''}. Would you like to view it instead?
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="primary"
+                  className="justify-center"
+                  onClick={() => navigate(`/trips/${duplicateTrip.trip_id}`)}
+                >
+                  View Existing Trip
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="justify-center"
+                  onClick={() => {
+                    setDuplicateTrip(null)
+                    setStarted(true)
+                    sendMessage(buildPrompt(), [])
+                  }}
+                >
+                  Create Anyway
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateTrip(null)}
+                  className="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-center py-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleFormSubmit} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

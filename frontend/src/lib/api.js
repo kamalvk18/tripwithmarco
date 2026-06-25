@@ -103,6 +103,7 @@ export async function chatStream({
   onText,
   onToolCall,
   onBookingData,
+  onEvalCorrection,
   signal,
 }) {
   const res = await fetch(`${BASE}/chat/stream`, {
@@ -141,9 +142,10 @@ export async function chatStream({
       if (raw === '[DONE]') return
       try {
         const evt = JSON.parse(raw)
-        if (evt.text        !== undefined) onText?.(evt.text)
-        if (evt.tool_call   !== undefined) onToolCall?.(evt.tool_call)
-        if (evt.booking_data !== undefined) onBookingData?.(evt.booking_data)
+        if (evt.text             !== undefined) onText?.(evt.text)
+        if (evt.tool_call        !== undefined) onToolCall?.(evt.tool_call)
+        if (evt.booking_data     !== undefined) onBookingData?.(evt.booking_data)
+        if (evt.eval_correction  !== undefined) onEvalCorrection?.()
       } catch { /* skip malformed */ }
     }
   }

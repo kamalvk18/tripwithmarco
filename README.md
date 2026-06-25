@@ -170,20 +170,39 @@ React SPA (Vite)
 FastAPI  (/api/trips, /api/chat/stream, /api/auth, ...)
     │
     ▼
-planning_agent.py → run_agentic_loop()
+chat()  [planning_agent.py]
     │
-    ├── llm.py (LiteLLM) → LLM_MODEL / LLM_FAST_MODEL
-    │       └── Anthropic / DeepSeek / OpenAI-compatible gateway
+    ├── companion_mode ──────────────────────────────────────────────────┐
+    │                                                                    │
+    └── orchestrate()  [orchestrator.py]                                 │
+         │                                                               │
+         ├── extract_trip_details()  [fast model]                        │
+         │                                                               │
+         ├── EXTRACT_ONLY ──┐                                            │
+         ├── INCREMENTAL ───┤ plan()  [planner_agent.py]                 │
+         └── FULL_PLAN      │   └── run_agentic_loop() ◄────────────────┘
+              │             │         ├── llm.py (LiteLLM)
+              │   ┌─────────┘         │     └── Anthropic / DeepSeek / gateway
+              │   │                   └── execute_tool()  [tool_executor.py]
+              ▼   │                         ├── search_flights()  → SerpApi
+         run_research()                     ├── search_hotels()   → SerpApi
+         [research_agent.py]               ├── search_places()   → SerpApi
+              │                            └── get_weather()     → OpenWeather
+              └── ResearchEvidence
+                  (injected into system prompt)
     │
-    ├── tool_use → execute_tool()
-    │       ├── search_flights()   → SerpApi
-    │       ├── search_hotels()    → SerpApi
-    │       ├── search_places()    → SerpApi
-    │       └── get_weather()      → OpenWeather
+    ▼  [after streaming]
+_sse_stream()
+    ├── eval_agent.check()   ┐ concurrent
+    ├── judge_itinerary()    ┘ (fast model)
+    ├── check_format()         deterministic
+    └── repair()  [repair_agent.py]  if failed
+         └── plan() with same ResearchEvidence — no re-research
     │
-    └── end_turn → extract + save to SQLite / Postgres
+    ▼
+extract + save to SQLite / Postgres
 ```
 
-Tool results are disk-cached (weather: 1h, flights/hotels: 6h, places: 24h) to avoid redundant API calls.
+Tool results are disk-cached (weather: 1h, flights/hotels: 6h, places: 24h) to avoid redundant API calls. INCREMENTAL requests skip research entirely — the planner works from conversation context.
 
 The LLM layer (`backend/llm.py`) wraps LiteLLM so no provider SDK is imported directly anywhere else. Switching providers only requires changing env vars — no code changes needed.

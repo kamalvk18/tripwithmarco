@@ -30,6 +30,7 @@ export function useSSEChat() {
     onDone,
     onError,
     onBookingData,
+    onEvalCorrection,
     onToolCall: onToolCallCb,
   }) => {
     abort()   // cancel any previous stream
@@ -53,6 +54,7 @@ export function useSSEChat() {
           onToolCallCb?.(name)
         },
         onBookingData,
+        onEvalCorrection,
       })
       onDone?.()
     } catch (err) {

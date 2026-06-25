@@ -14,17 +14,67 @@ backend/
 
 ## Agents
 
+### Pipeline overview
+
+Non-companion chat turns flow through a multi-agent pipeline:
+
+```
+chat()
+ ├── companion_mode → run_agentic_loop() directly
+ └── orchestrate()
+      ├── extract_trip_details() → ExtractionResult
+      ├── EXTRACT_ONLY  → plan() with empty evidence
+      ├── INCREMENTAL   → plan() with empty evidence  [skips research]
+      └── FULL_PLAN
+           ├── run_research() → ResearchEvidence
+           └── plan() with injected evidence
+```
+
+After streaming, `_sse_stream()` runs eval + judge concurrently, then `check_format()` deterministically, and triggers `repair_agent.repair()` if any check fails.
+
+### models.py
+
+Typed contracts between pipeline stages. Key types:
+- `ExtractionResult` — destination, city, dates, budget, currency, travelers
+- `ResearchEvidence` — formatted tool output strings + hotel_suggestions; `as_context_block()` renders it for prompt injection
+- `PlannerInput` — extraction + evidence + messages
+- `CriticResult` — structural issues + judge scores + `repair_instruction()` method
+- `WorkflowType` — `EXTRACT_ONLY | INCREMENTAL | FULL_PLAN | COMPANION`
+
+### orchestrator.py
+
+Routes each turn and wires stages. `_route()` is pure Python — no LLM call:
+1. No destination/dates → `EXTRACT_ONLY`
+2. Existing itinerary in messages AND same destination/dates as `trip_data` → `INCREMENTAL`
+3. Otherwise → `FULL_PLAN`
+
+Stores `_planner_input` and `_system_base` in `collected` (internal side-channel, popped before sending `booking_data` to client) so `_sse_stream()` can run repair without re-extracting or re-researching.
+
+### research_agent.py
+
+`run_research(extraction)` — non-streaming. One fast-model call with `tool_choice="required"` to derive tool parameters (including IATA codes), then all tool HTTP calls execute in parallel via `ThreadPoolExecutor`. Returns `ResearchEvidence`.
+
+### planner_agent.py
+
+`plan(planner_input, system_base)` — injects `evidence.as_context_block()` under a `## Pre-fetched Travel Data` heading in the system prompt, then delegates to `run_agentic_loop()` with the strong model. Planner still has tool access as fallback.
+
+### repair_agent.py
+
+`repair(planner_input, original_itinerary, critic_result, system_base)` — appends the failed itinerary and `critic_result.repair_instruction()` to `planner_input.messages`, builds a new `PlannerInput` reusing the same `ResearchEvidence`, and calls `plan()`. Called at most once per request.
+
 ### planning_agent.py
 
-Entry point is `chat(messages, trip_data, companion_mode)`. It:
-1. Loads `marco.md` as the base system prompt
-2. Appends current date and trip context
-3. In companion mode: injects `get_weather_forecast()` result + today's day section into the system prompt
-4. Calls `run_agentic_loop()` and yields streamed text chunks
+`chat()` — entry point. Builds system prompt (date, currency, group size, companion context), then routes: companion → `run_agentic_loop()`; else → `orchestrate()`.
 
-`run_agentic_loop()` streams from Claude, intercepts `tool_use`, dispatches via `tool_executor.execute_tool()`, appends `tool_result` blocks, and loops. Yield only text chunks to callers.
+`run_agentic_loop()` — streaming engine. Intercepts `tool_use` stop reasons, dispatches via `tool_executor.execute_tool()`, appends `tool_result` blocks, loops until `end_turn`. Used by both planner and repair agents.
 
-`extract_trip_details()` uses Haiku (not Sonnet) — it is a cheap structured extraction call, not a conversation turn. Returns `{destination, city, country_code, start_date, end_date}`.
+`extract_trip_details()` — fast-model extraction call (not a conversation turn). Returns `{destination, city, country_code, start_date, end_date, budget}`.
+
+### eval_agent.py
+
+- `check(output, trip_data)` — LLM structural check (all_days_covered, budget_respected, no_conflicts)
+- `check_format(text, num_days_expected)` — deterministic day-count via `extract_all_days()`; no LLM
+- `check_budget(breakdown)` — deterministic budget breakdown validation; no LLM
 
 ### tools.py
 
@@ -32,7 +82,7 @@ The `TOOLS` list is passed directly to the Claude API as the `tools` parameter. 
 
 ### tool_executor.py
 
-`execute_tool(tool_name, tool_input)` is the only public function. It returns a formatted string (natural language) that gets inserted as a `tool_result` message. All formatting happens here via `format_*_for_marco()` functions from each tool module.
+`execute_tool(tool_name, tool_input)` is the only public function. Returns a formatted string inserted as a `tool_result` message. Used by both `run_agentic_loop()` and `research_agent.run_research()`. All formatting via `format_*_for_marco()` functions.
 
 ## Tools
 

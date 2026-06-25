@@ -1,8 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Project Overview
 
-Marco is a React + FastAPI + Anthropic Claude app. The AI persona "Marco" plans trips and acts as a real-time travel companion. The app uses an agentic loop where Claude autonomously calls tools (flights, hotels, places, weather) to ground its itineraries in live data.
+Marco is a React + FastAPI + Anthropic Claude app. The AI persona "Marco" plans trips and acts as a real-time travel companion. The app uses a multi-agent pipeline where Claude autonomously calls tools (flights, hotels, places, weather) to ground its itineraries in live data.
 
 ## Development Commands
 
@@ -21,7 +21,7 @@ uv run main.py --ui           # http://localhost:5173
 uv run main.py --both
 
 # Run tests (no API keys required)
-uv run pytest tests/ -v
+uv run python -m pytest tests/ -v
 
 # Add a dependency
 uv add <package>
@@ -44,20 +44,22 @@ After streaming, `_sse_stream()` runs `eval_agent.check()` + `judge_itinerary()`
 `run_agentic_loop()` is the streaming engine used by the planner and repair agents. It intercepts `tool_use` stop reasons, dispatches to `tool_executor.py`, appends results back to `messages`, and loops until `end_turn`. Do not break this pattern.
 
 ### Two Models in Use
-- **claude-sonnet-4-5-20250929** — All planning and companion responses (streaming)
-- **claude-haiku-4-5-20251001** — Quick extraction tasks: `extract_trip_details()` only. Companion mode also uses Haiku (short replies, cost-sensitive). Do not use Haiku for anything requiring high-quality output.
+- **LLM_MODEL** (default: claude-sonnet-4-5-20250929) — Planning and companion responses (streaming)
+- **LLM_FAST_MODEL** (default: claude-haiku-4-5-20251001) — Extraction tasks (`extract_trip_details()`), research agent tool-parameter generation, eval/judge. Companion mode also uses the fast model (short replies, cost-sensitive).
+
+Both are configurable via environment variables. Do not use the fast model for anything requiring high-quality output.
 
 ### Companion Mode Context Injection
-When `companion_mode=True`, `chat()` pre-fetches live weather and injects today's itinerary section directly into the system prompt (not as a user message). This gives Marco context without requiring tool calls at runtime. See `planning_agent.py:chat()`.
+When `companion_mode=True`, `chat()` pre-fetches live weather and injects today's itinerary section directly into the system prompt (not as a user message). This gives Marco context without requiring tool calls at runtime. Companion mode bypasses the orchestrator entirely — it goes directly to `run_agentic_loop()`.
 
 ### Destination Input
-The destination and origin fields in the trip form are plain text inputs — no autocomplete. `destinationCountryCode` is no longer populated by the form; the backend derives it via `extract_trip_details()` (Haiku extraction from the conversation text).
+The destination and origin fields in the trip form are plain text inputs — no autocomplete. `destinationCountryCode` is no longer populated by the form; the backend derives it via `extract_trip_details()`.
 
 ### Persistence
 Trips are stored in a SQLite database (`data/trips.db` locally, `/data/trips.db` on a persistent volume). Each row holds indexed summary columns plus a full JSON blob of the trip. The `messages` array inside the blob is the full conversation history — the trip record IS the conversation. `trip_store.py` is the only entry point; no other module touches the DB directly. To swap to Postgres, set `DATABASE_URL=postgresql://...`.
 
 ### Expense Splitting (Splitwise-style)
-Expenses have three extra fields beyond category/amount/date: `paid_by_user_id`, `paid_by_name`, and `splits` (array of `{user_id, name, amount}`). Settlements are stored as a separate `settlements` array in the same trip JSON blob — no new DB table. Balances are computed on the fly (both server-side via `GET /trips/{id}/balances` and client-side in `ExpenseTracker.jsx:computeBalances()`) using a greedy simplification algorithm that minimises the number of transactions. Old expenses without `splits` are ignored in balance calculations — fully backward-compatible.
+Expenses have three extra fields beyond category/amount/date: `paid_by_user_id`, `paid_by_name`, and `splits` (array of `{user_id, name, amount}`). Settlements are stored as a separate `settlements` array in the same trip JSON blob — no new DB table. Balances are computed on the fly (both server-side via `GET /trips/{id}/balances` and client-side in `ExpenseTracker.jsx:computeBalances()`) using a greedy simplification algorithm that minimises the number of transactions.
 
 ### Tool Result Caching
 `backend/tools/cache.py` caches SerpApi and OpenWeather HTTP responses to disk. TTLs: weather 1h, flights/hotels 6h, places 24h. This skips external API calls. For INCREMENTAL requests, both tool calls and Claude inference are skipped entirely — the planner works from conversation context.
@@ -76,10 +78,11 @@ Expenses have three extra fields beyond category/amount/date: `paid_by_user_id`,
 | `backend/agents/planning_agent.py` | `chat()` entry point, `run_agentic_loop()` streaming engine, itinerary/day extraction helpers |
 | `backend/agents/tool_executor.py` | Dispatches tool name → handler, formats result for Claude; used by agentic loop and research agent |
 | `backend/agents/tools.py` | JSON schema definitions for all 4 tools |
+| `backend/agents/eval_agent.py` | `check()` LLM eval, `check_format()` deterministic day-count, `check_budget()` budget validation |
 | `backend/evals/judge.py` | LLM-as-judge scoring on 4 dimensions: coverage, specificity, budget_fit, data_usage |
 | `backend/tools/flights.py` | SerpApi Google Flights query + parse + format |
 | `backend/tools/hotels.py` | SerpApi Google Hotels query + parse + format |
-| `backend/tools/places.py` | SerpApi Google Local query + parse + format; auto-retries with broader location fallbacks on unsupported-location errors |
+| `backend/tools/places.py` | SerpApi Google Local query + parse + format; auto-retries with broader location fallbacks |
 | `backend/tools/weather.py` | OpenWeather geo + forecast query + format |
 | `backend/tools/cache.py` | Disk cache for external API calls (TTL-based) |
 | `backend/db/database.py` | SQLAlchemy engine, session factory, `init_db()` |
@@ -89,7 +92,7 @@ Expenses have three extra fields beyond category/amount/date: `paid_by_user_id`,
 | `backend/api/app.py` | FastAPI app factory, auth middleware, CORS, route registration |
 | `backend/api/schemas.py` | Pydantic request/response models — includes `Expense`, `ExpenseSplit`, `Settlement`, `BalancesResponse` |
 | `backend/api/routes/trips.py` | Trip CRUD + expense, settlement, and balances endpoints |
-| `backend/api/routes/chat.py` | SSE streaming + sync chat endpoints |
+| `backend/api/routes/chat.py` | SSE streaming + sync chat endpoints; eval/judge/repair wired here |
 | `tests/test_planning_agent.py` | Unit tests for extract_all_days, get_trip_day, orchestrator routing, etc. |
 | `tests/test_tools.py` | Unit tests for parse/format functions in all 4 tool modules |
 | `tests/test_api.py` | API endpoint tests (all routes, mocked dependencies) |
@@ -147,16 +150,20 @@ Optional:
 - `RESEND_API_KEY` / `RESEND_FROM` — email briefing delivery
 - `DAILY_TRIP_LIMIT` — max trips a user can create per UTC day (default: `2`)
 - `DAILY_CHAT_LIMIT` — max chat/Ask-Marco requests a user can send per UTC day (default: `20`)
+- `LLM_MODEL` — LiteLLM model string for planning (default: claude-sonnet-4-5-20250929)
+- `LLM_FAST_MODEL` — LiteLLM model string for extraction/research/eval (default: claude-haiku-4-5-20251001)
+- `LLM_BASE_URL` — custom gateway URL (e.g. Vercel AI Gateway)
+- `LLM_API_KEY` — API key for the gateway
 
 ## Itinerary Parsing
 
-`extract_all_days()` in `planning_agent.py` uses regex to split itinerary text into day objects. It handles markdown headers (`# Day 1`, `**Day 1**`, `Day 1:`, etc.). If Marco's output format changes significantly, this regex may need updating.
+`extract_all_days()` in `planning_agent.py` uses regex to split itinerary text into day objects. It handles markdown headers (`# Day 1`, `**Day 1**`, `Day 1:`, etc.). The same function is used by the UI to render day cards and by `eval_agent.check_format()` to count days deterministically. If Marco's output format changes significantly, this regex may need updating.
 
 ## FastAPI Layer
 
 `backend/api/app.py` is the FastAPI application. Swagger docs at `http://localhost:8000/docs`.
 
-The streaming endpoint wraps the sync `chat()` generator using `starlette.concurrency.iterate_in_threadpool` so it doesn't block the event loop. All trip and chat logic still flows through `planning_agent.py:chat()` — the API layer adds no business logic.
+The streaming endpoint wraps the sync `chat()` generator using `starlette.concurrency.iterate_in_threadpool` so it doesn't block the event loop. After streaming completes, `_sse_stream()` runs eval + judge concurrently and triggers repair if needed — all in the async layer.
 
 On startup, the lifespan handler: creates DB tables → migrates any legacy JSON files → seeds demo trips.
 
@@ -164,4 +171,4 @@ On startup, the lifespan handler: creates DB tables → migrates any legacy JSON
 
 - `data/` grows indefinitely (SQLite DB + cache files); no automatic cleanup
 - SerpApi free tier is 250 searches/month — budget searches carefully in dev
-- `test.py` uses Google Gemini (unrelated to the main app) — do not treat it as a test suite
+- Thinking/reasoning models (e.g. DeepSeek-R1) cannot be used as `LLM_FAST_MODEL` because extraction and research calls use `tool_choice`, which those models don't support

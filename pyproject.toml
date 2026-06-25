@@ -25,3 +25,9 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.0.3",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--ignore=tests/evals"
+markers = [
+    "eval: LLM-backed evals with real API calls — run with: uv run pytest tests/evals/ -v",
+]

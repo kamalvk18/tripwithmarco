@@ -13,6 +13,8 @@ from backend.agents.planning_agent import (
     extract_itinerary,
     get_trip_day,
 )
+from backend.agents.models import ExtractionResult
+from backend.agents.orchestrator import WorkflowType, _has_existing_itinerary, _route, _same_trip
 
 
 # ── extract_all_days ──────────────────────────────────────────────────────────
@@ -176,3 +178,64 @@ class TestGetTripDay:
         assert result["status"] == "active"
         assert result["day_number"] == 1
         assert result["total_days"] == 1
+
+
+# ── Orchestrator routing ──────────────────────────────────────────────────────
+
+ITINERARY_MESSAGES = [
+    {"role": "user", "content": "Plan a trip to Tokyo"},
+    {"role": "assistant", "content": (
+        "# Day 1 — Arrival\nCheck in and rest.\n\n"
+        "# Day 2 — Shibuya\nVisit the crossing.\n\n"
+        "# Day 3 — Departure\nHead to the airport."
+    )},
+]
+
+EMPTY_MESSAGES = [
+    {"role": "user", "content": "Plan a trip to Tokyo"},
+]
+
+_COMPLETE = ExtractionResult(destination="Tokyo", start_date="2026-08-01", end_date="2026-08-05")
+_INCOMPLETE = ExtractionResult(destination="Tokyo")  # no dates
+
+
+class TestOrchestratorRouting:
+    def test_extract_only_when_dates_missing(self):
+        assert _route(_INCOMPLETE, EMPTY_MESSAGES, None) == WorkflowType.EXTRACT_ONLY
+
+    def test_full_plan_when_no_itinerary_yet(self):
+        assert _route(_COMPLETE, EMPTY_MESSAGES, None) == WorkflowType.FULL_PLAN
+
+    def test_incremental_when_itinerary_exists_and_same_trip(self):
+        trip_data = {"destination": "Tokyo, Japan", "start_date": "2026-08-01"}
+        assert _route(_COMPLETE, ITINERARY_MESSAGES, trip_data) == WorkflowType.INCREMENTAL
+
+    def test_full_plan_when_destination_changed(self):
+        trip_data = {"destination": "Osaka, Japan", "start_date": "2026-08-01"}
+        assert _route(_COMPLETE, ITINERARY_MESSAGES, trip_data) == WorkflowType.FULL_PLAN
+
+    def test_full_plan_when_trip_data_absent(self):
+        # No trip_data means _same_trip returns False → FULL_PLAN even with itinerary
+        assert _route(_COMPLETE, ITINERARY_MESSAGES, None) == WorkflowType.FULL_PLAN
+
+    def test_has_existing_itinerary_true(self):
+        assert _has_existing_itinerary(ITINERARY_MESSAGES) is True
+
+    def test_has_existing_itinerary_false(self):
+        assert _has_existing_itinerary(EMPTY_MESSAGES) is False
+
+    def test_same_trip_matches_partial_destination(self):
+        # Saved: "Tokyo, Japan", extracted: "Tokyo" — should match
+        extraction = ExtractionResult(destination="Tokyo", start_date="2026-08-01", end_date="2026-08-05")
+        trip_data = {"destination": "Tokyo, Japan", "start_date": "2026-08-01"}
+        assert _same_trip(extraction, trip_data) is True
+
+    def test_same_trip_rejects_different_destination(self):
+        extraction = ExtractionResult(destination="Osaka", start_date="2026-08-01", end_date="2026-08-05")
+        trip_data = {"destination": "Tokyo, Japan", "start_date": "2026-08-01"}
+        assert _same_trip(extraction, trip_data) is False
+
+    def test_same_trip_rejects_different_start_date(self):
+        extraction = ExtractionResult(destination="Tokyo", start_date="2026-09-01", end_date="2026-09-05")
+        trip_data = {"destination": "Tokyo, Japan", "start_date": "2026-08-01"}
+        assert _same_trip(extraction, trip_data) is False

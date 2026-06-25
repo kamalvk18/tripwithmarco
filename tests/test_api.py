@@ -177,8 +177,9 @@ class TestChatStream:
             if line.startswith("data:") and "[DONE]" not in line:
                 payload = line.removeprefix("data:").strip()
                 parsed = json.loads(payload)
-                # Each chunk is either a text event or a tool_call event
-                assert "text" in parsed or "tool_call" in parsed
+                # Valid event types in the SSE stream
+                valid_keys = {"text", "tool_call", "booking_data", "eval_result"}
+                assert parsed.keys() & valid_keys, f"Unexpected SSE event keys: {parsed.keys()}"
 
 
 # ── /api/chat/extract ─────────────────────────────────────────────────────────
@@ -236,16 +237,18 @@ class TestExtract:
         assert res.json()["budget_breakdown"]["flights"] == 200
 
     def test_returns_days(self):
+        _days = [{"day": 1, "title": "ARRIVAL", "content": "Arrive, check in."}]
         with (
             patch("backend.api.routes.chat.extract_trip_details", return_value=EXTRACT_RESULT),
             patch("backend.api.routes.chat.extract_itinerary", return_value="Day 1: ..."),
             patch("backend.api.routes.chat.extract_structured_itinerary", return_value=_STRUCTURED_RESULT),
+            patch("backend.api.routes.chat.extract_all_days", return_value=_days),
         ):
             res = client.post("/api/chat/extract", json=EXTRACT_PAYLOAD)
         days = res.json()["days"]
         assert len(days) == 1
         assert days[0]["day"] == 1
-        assert days[0]["title"] == "Day 1 — ARRIVAL"
+        assert days[0]["title"] == "ARRIVAL"
 
     def test_missing_currency_defaults_to_eur(self):
         payload_no_currency = {

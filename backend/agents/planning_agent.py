@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from dotenv import load_dotenv
 from backend import llm
@@ -97,12 +99,28 @@ Each signal should be a short, concrete statement (under 10 words) about the tra
 Return ONLY a JSON array of strings. Example: ["Prefers local food markets over sit-down restaurants", "Dislikes crowded tourist sites", "Loves half-day hikes with a view"]"""
 
 _INJECT_RE = re.compile(r"(##\s|ignore\s|system\s*prompt|<\s*/?system|instruction)", re.IGNORECASE)
+_WEATHER_CITY_ALIASES = {
+    ("Bali, Indonesia", "Bali"): "Denpasar",
+}
 
 def _safe_str(value: str, max_len: int = 200) -> str:
     s = str(value).strip()[:max_len]
     if _INJECT_RE.search(s):
         return ""
     return s
+
+
+def _normalize_extracted_trip_details(details: dict) -> dict:
+    """Patch model-friendly trip labels into weather-friendly lookup cities."""
+    if not isinstance(details, dict):
+        return {}
+
+    destination = str(details.get("destination") or "").strip()
+    city = str(details.get("city") or "").strip()
+    alias = _WEATHER_CITY_ALIASES.get((destination, city))
+    if alias:
+        details = {**details, "city": alias}
+    return details
 
 
 def extract_trip_details(messages: list) -> dict:
@@ -120,15 +138,16 @@ def extract_trip_details(messages: list) -> dict:
         )
         _log_usage(LLM_FAST_MODEL, resp["usage"])
         raw = resp["text"].strip().strip("```json").strip("```").strip()
-        return json.loads(raw)
+        return _normalize_extracted_trip_details(json.loads(raw))
     except Exception:
         return {}
 
 
-def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
+def extract_structured_itinerary(itinerary: str, currency: str = "EUR", issues_hint: str = "") -> dict:
     """
-    Use the fast model with tool_choice to extract a typed day-by-day plan + budget.
-    Returns {"days": [...], "budget_breakdown": {...}} or {} on failure.
+    Use the fast model with tool_choice to estimate the budget breakdown from an itinerary.
+    Returns {"budget_breakdown": {...}} or {} on failure.
+    Days are extracted separately via regex (extract_all_days) to avoid token overflow.
     """
     if not itinerary:
         return {}
@@ -137,39 +156,10 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
         "type": "function",
         "function": {
             "name": "save_itinerary",
-            "description": "Persist the structured itinerary with day plans and budget breakdown.",
+            "description": "Persist the itinerary budget breakdown.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "days": {
-                        "type": "array",
-                        "description": "Every day section from the itinerary, in order.",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "day": {
-                                    "type": "integer",
-                                    "description": (
-                                        "Day number as an integer. "
-                                        "For ranges like 'Day 5-6' use the first number (5)."
-                                    ),
-                                },
-                                "title": {
-                                    "type": "string",
-                                    "description": (
-                                        "Descriptive title only — strip the 'Day N', 'Day N:', "
-                                        "or 'Day N — ' prefix and any leading date. "
-                                        "e.g. from '## Day 1 — Arrival & Gentle Start' extract 'Arrival & Gentle Start'."
-                                    ),
-                                },
-                                "content": {
-                                    "type": "string",
-                                    "description": "Complete text for this day (activities, meals, tips, etc.).",
-                                },
-                            },
-                            "required": ["day", "title", "content"],
-                        },
-                    },
                     "budget_breakdown": {
                         "type": "object",
                         "description": f"Estimated total costs in {currency} for the whole trip.",
@@ -189,7 +179,7 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
                         },
                     },
                 },
-                "required": ["days", "budget_breakdown"],
+                "required": ["budget_breakdown"],
             },
         },
     }
@@ -198,14 +188,17 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR") -> dict:
         resp = llm.complete(
             model=LLM_FAST_MODEL,
             system=(
-                f"You are a travel itinerary parser. "
-                f"Extract every day section and the budget estimate (in {currency}) "
-                f"from the itinerary below. Preserve the full content for each day."
+                f"You are a travel cost estimator. "
+                f"From the itinerary below, estimate the total trip costs in {currency}. "
+                f"Use any prices mentioned as anchors and estimate any missing categories "
+                f"based on the destination, accommodation type, and activities described. "
+                f"Every numeric field must be a positive number — never null or zero unless the trip genuinely has no cost in that category."
+                + (f" Previous extraction was incomplete: {issues_hint}. Fix these gaps." if issues_hint else "")
             ),
-            messages=[{"role": "user", "content": itinerary[:8000]}],
+            messages=[{"role": "user", "content": itinerary[:12000]}],
             tools=[_tool],
             tool_choice={"type": "function", "function": {"name": "save_itinerary"}},
-            max_tokens=8096,
+            max_tokens=512,
         )
         _log_usage(LLM_FAST_MODEL, resp["usage"])
         if resp["tool_calls"]:
@@ -364,16 +357,30 @@ def run_agentic_loop(
             ],
         })
 
-        # Execute each tool and append its result
+        # Notify caller and log before firing concurrent requests
         for tc in tool_calls:
             print(f"🔧 Marco is using tool: {tc['name']} with {tc['input']}")
             if on_tool_call is not None:
                 on_tool_call(tc["name"], tc["input"])
-            result = execute_tool(tc["name"], tc["input"], collected=collected)
+
+        # Execute all tools concurrently — each is a blocking HTTP call
+        _lock = threading.Lock()
+
+        def _run(tc):
+            if collected is None:
+                return tc["id"], execute_tool(tc["name"], tc["input"], collected=collected)
+            return tc["id"], execute_tool(tc["name"], tc["input"], collected=collected, _lock=_lock)
+
+        results: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=len(tool_calls)) as pool:
+            for tool_id, result in pool.map(_run, tool_calls):
+                results[tool_id] = result
+
+        for tc in tool_calls:
             current_messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
-                "content": result,
+                "content": results[tc["id"]],
             })
 
 
@@ -451,9 +458,17 @@ Use this to adjust today's plan. Don't mention you fetched it — just act on it
 
     system = SYSTEM_PROMPT + dynamic_context
 
-    model = LLM_FAST_MODEL if companion_mode else LLM_MODEL
-    tokens = COMPANION_MAX_TOKENS if companion_mode else PLANNING_MAX_TOKENS
-    yield from run_agentic_loop(messages, system, on_tool_call=on_tool_call, collected=collected, model=model, max_tokens=tokens)
+    if companion_mode:
+        yield from run_agentic_loop(
+            messages, system,
+            on_tool_call=on_tool_call,
+            collected=collected,
+            model=LLM_FAST_MODEL,
+            max_tokens=COMPANION_MAX_TOKENS,
+        )
+    else:
+        from backend.agents.orchestrator import orchestrate
+        yield from orchestrate(messages, system, trip_data, on_tool_call, collected)
 
 
 def generate_checklist(destination: str, passport_country: str, start_date: str) -> list[dict]:

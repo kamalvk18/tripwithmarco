@@ -1,4 +1,5 @@
 import time
+import contextlib
 from datetime import date, timedelta
 
 from backend.tools.flights import search_flights, format_flights_for_marco
@@ -28,7 +29,7 @@ def _log_tool_call(tool_name: str, cache_hit: bool, success: bool, duration_ms: 
         pass
 
 
-def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None) -> str:
+def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None, _lock=None) -> str:
     """
     Execute a tool by name with given inputs.
     Returns result as a string to send back to Claude.
@@ -52,17 +53,18 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 check_out_date=tool_input["check_out_date"],
             )
             if collected is not None and hotels:
-                seen = {h["name"] for h in collected.get("hotel_suggestions", [])}
-                new = [
-                    {
-                        "name": h["name"],
-                        "destination": tool_input["destination"],
-                        "check_in": tool_input["check_in_date"],
-                        "check_out": tool_input["check_out_date"],
-                    }
-                    for h in hotels[:4] if h["name"] not in seen
-                ]
-                collected.setdefault("hotel_suggestions", []).extend(new)
+                with (_lock if _lock is not None else contextlib.nullcontext()):
+                    seen = {h["name"] for h in collected.get("hotel_suggestions", [])}
+                    new = [
+                        {
+                            "name": h["name"],
+                            "destination": tool_input["destination"],
+                            "check_in": tool_input["check_in_date"],
+                            "check_out": tool_input["check_out_date"],
+                        }
+                        for h in hotels[:4] if h["name"] not in seen
+                    ]
+                    collected.setdefault("hotel_suggestions", []).extend(new)
             result = format_hotels_for_marco(
                 hotels,
                 tool_input["destination"],

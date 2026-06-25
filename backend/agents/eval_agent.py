@@ -12,11 +12,11 @@ from datetime import date as _date
 from backend import llm
 from backend.config import LLM_FAST_MODEL
 
-DEFAULT_CRITERIA = ["all_days_covered", "budget_respected", "no_conflicts"]
+DEFAULT_CRITERIA = ["all_days_covered", "days_have_content", "no_conflicts"]
 
 _BUDGET_CATEGORIES = {"travel", "accommodation", "food", "activities", "transport"}
 
-_EVAL_SYSTEM = """You are a travel itinerary quality checker. Evaluate the itinerary against the criteria and trip context provided.
+_EVAL_SYSTEM = """You are a travel itinerary quality checker. Your job is to verify the itinerary is complete enough to render cleanly — not to police the budget.
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -24,17 +24,19 @@ Return ONLY a JSON object with this exact structure:
   "issues": [],
   "criteria": {
     "all_days_covered": true,
-    "budget_respected": true,
+    "days_have_content": true,
     "no_conflicts": true
   }
 }
 
 Criteria rules:
 - all_days_covered: Every day of the trip has a plan section (Day 1 through Day N all present). Set to null if expected day count is unknown.
-- budget_respected: Total estimated trip cost is within the stated budget. Set to null if no budget was stated.
+- days_have_content: Every day section has real activities — named morning, afternoon, or evening plans. Fail ONLY if a day section is essentially empty (no activities listed, just a heading or "TBD"). Set to null if cannot be determined.
 - no_conflicts: No single day has two far-apart locations scheduled at the same time slot. Set to null if cannot be determined.
 - passed: true only if every non-null criterion passes and issues is empty.
 - issues: Short, specific descriptions of each failure. Empty list if all pass.
+
+Budget rule: Budget overages are NOT failures. An itinerary 10–25% over the stated budget is fine — the user can negotiate cheaper options in follow-up. Never set passed=false because of budget alone.
 
 Only check the criteria listed in "Check these criteria". Set unchecked criteria to null.
 No markdown, no explanation. JSON only."""
@@ -70,10 +72,6 @@ def check(
 
     context_lines: list[str] = []
     if trip_data:
-        budget = trip_data.get("budget")
-        currency = trip_data.get("currency", "EUR")
-        if budget:
-            context_lines.append(f"Budget: {budget} {currency}")
         start = trip_data.get("start_date", "")
         end = trip_data.get("end_date", "")
         if start and end:

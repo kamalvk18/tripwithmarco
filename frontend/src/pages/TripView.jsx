@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   RefreshCw, Navigation, RotateCcw, Download, Plane,
-  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, LocateFixed, Map, Share2,
+  Calendar, FileText, Wifi, Trash2, ArrowLeft, ExternalLink, Map, Share2,
 } from 'lucide-react'
 import { buildMarkdown, buildICS, buildOfflineHTML, downloadFile } from '@/lib/exports'
 import { saveDebrief } from '@/lib/api'
@@ -12,7 +12,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useTrip } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { useWeatherCache } from '@/hooks/useWeatherCache'
-import { useNearMe } from '@/hooks/useNearMe'
 import { DayCard } from '@/components/DayCard'
 import { TripMap } from '@/components/TripMap'
 import { BudgetPanel } from '@/components/BudgetPanel'
@@ -36,7 +35,7 @@ export default function TripView() {
     messages, days,
     status, label, dayNum,
     saveMessages, updateSpending, updateSettlements, updateChecklist, updateEmailConfig,
-    updateDayOverride, updateDebrief, updateNearMe, getCachedNearMeResponse, remove,
+    updateDayOverride, updateDebrief, remove,
     updateMembers,
   } = useTrip(id)
 
@@ -45,8 +44,6 @@ export default function TripView() {
   // ── UI-only state ──────────────────────────────────────────────────────────
   const { streaming, toolStatus, send } = useSSEChat()
   const { getWeather } = useWeatherCache()
-
-  const { locate, locating } = useNearMe()
 
   const mapDays = useMemo(
     () => days.map(day => ({
@@ -62,16 +59,12 @@ export default function TripView() {
   const [weatherText, setWeatherText]     = useState(null)
   const [rebuilding, setRebuilding]       = useState(false)
   const [rebuildText, setRebuildText]     = useState('')
-  const [nearMeActive, setNearMeActive]     = useState(false)
-  const [nearMeText, setNearMeText]         = useState('')
-  const [nearMeDismissed, setNearMeDismissed] = useState(false)
   const [debriefing, setDebriefing]       = useState(false)
   const [debriefText, setDebriefText]     = useState('')
   const [showExport, setShowExport]       = useState(false)
   const [emailPanelOpen, setEmailPanelOpen] = useState(false)
   const [chatError, setChatError]         = useState(null)
   const rebuildRef  = useRef('')
-  const nearMeRef   = useRef('')
   const debriefRef  = useRef('')
 
   // ── Loading / not-found guards ─────────────────────────────────────────────
@@ -131,42 +124,6 @@ export default function TripView() {
     })
   }
 
-  // ── Near Me ───────────────────────────────────────────────────────────────
-  async function handleNearMe(force = false) {
-    setNearMeDismissed(false)
-
-    // getCachedNearMeResponse reads from the module-level tripCache which is updated
-    // synchronously inside patch() — always current, never affected by stale closures.
-    const cached = getCachedNearMeResponse()
-    if (!force && cached) {
-      setNearMeText(cached)
-      return
-    }
-
-    setNearMeActive(true)
-    nearMeRef.current = ''
-    setNearMeText('')
-
-    const loc = await locate()
-    if (!loc) { setNearMeActive(false); return }
-
-    const prompt = `I'm currently at ${loc.display}. Based on today's itinerary, which activities or places are closest to where I am right now? What should I do next? Give me 2-3 specific, actionable options — keep it short and punchy.`
-
-    await send({
-      messages: [...messages, { role: 'user', content: prompt }],
-      tripData,
-      companionMode: true,
-      onChunk: chunk => {
-        nearMeRef.current += chunk
-        setNearMeText(nearMeRef.current)
-      },
-      onDone: () => {
-        setNearMeActive(false)
-        updateNearMe(nearMeRef.current)
-      },
-      onError: msg => { setNearMeActive(false); setChatError(msg) },
-    })
-  }
 
   // ── Post-trip debrief ─────────────────────────────────────────────────────
   async function handleDebrief() {
@@ -310,17 +267,6 @@ export default function TripView() {
             >
               {rebuilding ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw size={14} />}
               Rebuild Today
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleNearMe()}
-              disabled={locating || nearMeActive || streaming}
-              title="Find activities near your current location"
-            >
-              {locating || nearMeActive
-                ? <Spinner className="w-3.5 h-3.5" />
-                : <LocateFixed size={14} />}
-              Near Me
             </Button>
           </>
         )}
@@ -524,44 +470,6 @@ export default function TripView() {
                   </span>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Near Me — streaming + persisted */}
-      {!nearMeDismissed && (nearMeActive || nearMeText || tripData.near_me_response) && (
-        <div className="rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 p-5 mb-6">
-          <div className="flex items-center justify-between gap-2 text-sm text-emerald-700 dark:text-emerald-300 mb-3">
-            <div className="flex items-center gap-2">
-              {nearMeActive
-                ? <><Spinner className="w-4 h-4" /> {locating ? 'Getting your location…' : (toolStatus ?? "Finding what's near you…")}</>
-                : <><LocateFixed size={14} /> What's near you</>
-              }
-            </div>
-            {!nearMeActive && (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleNearMe(true)}
-                  disabled={streaming}
-                  className="text-xs text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
-                >
-                  <RefreshCw size={12} className="inline mr-1" />refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNearMeDismissed(true)}
-                  className="text-xs text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
-                >
-                  dismiss
-                </button>
-              </div>
-            )}
-          </div>
-          {(nearMeText || tripData.near_me_response) && (
-            <div className={`prose prose-sm max-w-none text-slate-700 dark:text-slate-300 ${nearMeActive ? 'streaming-cursor' : ''}`}>
-              <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{nearMeText || tripData.near_me_response}</ReactMarkdown>
             </div>
           )}
         </div>

@@ -16,13 +16,13 @@ _JUDGE_SYSTEM = """Score this travel itinerary on 4 dimensions (1–5 each):
 
 - coverage: does it produce a real plan for every requested day? (1 = days missing, 5 = every day fully planned)
 - specificity: does it name real places, hotels, restaurants? (1 = vague generics like "visit local restaurants", 5 = specific named venues)
-- budget_fit: are estimated costs plausible for the stated budget and destination? (1 = wildly off, 5 = realistic and detailed)
+- budget_fit: are the estimated costs realistic for the destination? Overages up to 25% above the stated budget are acceptable and should score 4–5 if the trip experience is good. Only score 1–2 if costs are wildly unrealistic for the destination entirely, or no cost estimates are provided at all.
 - data_usage: does it reference actual flight/hotel data or fall back to generic advice? (1 = all generic, 5 = clearly uses live data)
 
 Return ONLY a JSON object — no markdown, no prose:
 {"coverage": N, "specificity": N, "budget_fit": N, "data_usage": N, "flags": ["<one-line note on any serious issue>"]}
 
-flags should be an empty array if there are no issues worth noting."""
+flags should be an empty array if there are no issues worth noting. Never flag a minor budget overage as a serious issue."""
 
 
 def _infer_data_usage(itinerary: str) -> int:

@@ -56,7 +56,7 @@ Return ONLY a JSON object with these exact fields:
 - is_domestic: true if origin and destination are in the same country, false if different countries, null if cannot be determined
 - start_date: YYYY-MM-DD format, or "" if not mentioned
 - end_date: YYYY-MM-DD format, or "" if not mentioned
-- budget: the user's most recently stated budget as a plain number (e.g. 35000), or null if not mentioned. Use the LATEST value if the user updated it.
+- budget: scan ALL user messages for a budget amount and return it as a plain number (e.g. 50000). If the user stated multiple amounts, return the most recent. Return null only if no budget was ever mentioned anywhere in the conversation.
 
 No markdown, no explanation. JSON object only."""
 
@@ -123,10 +123,20 @@ def _normalize_extracted_trip_details(details: dict) -> dict:
     return details
 
 
+def _message_text(content, max_len: int = 600) -> str:
+    """Extract plain text from a message content field (str or list of blocks)."""
+    if isinstance(content, str):
+        return content[:max_len]
+    if isinstance(content, list):
+        parts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        return " ".join(parts)[:max_len]
+    return ""
+
+
 def extract_trip_details(messages: list) -> dict:
     """Use the fast model to extract structured trip details from conversation."""
     conversation = "\n".join(
-        f"{m['role'].upper()}: {m['content'][:600]}"
+        f"{m['role'].upper()}: {_message_text(m.get('content', ''))}"
         for m in messages
     )
     try:

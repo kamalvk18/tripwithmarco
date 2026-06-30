@@ -94,10 +94,15 @@ def parse_flights(raw_flights: list) -> list[dict]:
                 if leg.get("overnight"):
                     warnings.append("overnight flight")
 
+            price = flight.get("price")
+            if not price:
+                # Skip flights where SerpApi returns null or 0 — unusable for planning
+                continue
+
             parsed.append({
                 "airline": airline_str,
                 "airline_logo": first_leg.get("airline_logo"),
-                "price": flight.get("price", 0),
+                "price": price,
                 "price_label": None,  # set by format_flights_for_marco once currency is known
                 "from": departure["id"],
                 "to": arrival["id"],

@@ -53,6 +53,7 @@ class TripSummary(BaseModel):
     end_date: str = ""
     budget: float | None = None
     currency: str | None = None
+    origin: str = ""
     is_member: bool = False        # True when the caller joined but doesn't own the trip
     owner_name: str = ""           # Non-empty only when is_member=True
 
@@ -248,6 +249,25 @@ class ExtractResponse(BaseModel):
 
 
 # ── Sharing ───────────────────────────────────────────────────────────────────
+
+class SurpriseRequest(BaseModel):
+    """Body for POST /chat/surprise — all three inputs are required."""
+    origin: str = Field(..., min_length=1, max_length=200)
+    start_date: str = Field(..., min_length=10, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(..., min_length=10, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # Optional personalisation context
+    past_destinations: list[str] = Field(default_factory=list, max_length=50)
+    preferences: list[str] = Field(default_factory=list, max_length=20)
+    budget: float | None = None
+    currency: str = Field("EUR", max_length=3)
+    travel_styles: list[str] = Field(default_factory=list, max_length=10)
+
+
+class SurpriseResponse(BaseModel):
+    """Response for POST /chat/surprise — the destination Marco picked for the given dates."""
+    destination: str
+    reason: str
+
 
 class InviteTokenResponse(BaseModel):
     invite_token: str

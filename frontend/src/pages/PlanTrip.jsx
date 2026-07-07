@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Plane, Send, Save } from 'lucide-react'
 import { toolLabel } from '@/lib/utils'
-import { extractInfo, listTrips, saveTrip, updateTrip } from '@/lib/api'
+import { extractInfo, getSurprise, listTrips, reverseGeocode, saveTrip, updateTrip } from '@/lib/api'
 import { invalidateTripCache } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { Button } from '@/components/ui/Button'
@@ -97,6 +97,19 @@ export default function PlanTrip() {
         // Deduplicate and cap to avoid bloating the prompt
         const unique = [...new Set(prefs)].slice(0, 10)
         setPastPreferences(unique)
+
+        // Pre-fill origin from the most common home city across past trips
+        if (!form.origin && !prefill.origin && !resume?.meta?.origin) {
+          const origins = trips
+            .filter(t => !t.is_member && t.origin)
+            .map(t => t.origin.trim())
+            .filter(Boolean)
+          if (origins.length > 0) {
+            const freq = origins.reduce((acc, o) => ({ ...acc, [o]: (acc[o] ?? 0) + 1 }), {})
+            const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
+            setField('origin', top)
+          }
+        }
       })
       .catch(() => {})
   }, [])
@@ -109,6 +122,8 @@ export default function PlanTrip() {
   const [input, setInput]               = useState('')
   const [saving, setSaving]             = useState(false)
   const [draftSaved, setDraftSaved]     = useState(!!resume)
+  const [surpriseLoading, setSurpriseLoading] = useState(false)
+  const [surpriseReason, setSurpriseReason]   = useState('')
   // True once Marco has written a full day-by-day itinerary — shows the Save button
   const [itineraryReady, setItineraryReady] = useState(false)
   // Planning screen state (new trip only — hidden for resume)
@@ -340,6 +355,58 @@ export default function PlanTrip() {
     }
   }
 
+  // ── Surprise Me ─────────────────────────────────────────────────────────────
+  async function handleSurprise() {
+    if (!form.startDate || !form.endDate) {
+      setSurpriseReason('__dates_missing__')
+      return
+    }
+    setSurpriseLoading(true)
+    setSurpriseReason('')
+    try {
+      // Resolve origin: use the form value if set, otherwise ask the browser
+      let origin = form.origin
+      if (!origin && navigator.geolocation) {
+        origin = await new Promise(resolve => {
+          navigator.geolocation.getCurrentPosition(
+            async pos => {
+              try {
+                const { city } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude)
+                resolve(city || '')
+              } catch { resolve('') }
+            },
+            () => resolve(''),
+            { timeout: 5000 },
+          )
+        })
+        if (origin) setField('origin', origin)
+      }
+
+      if (!origin) {
+        setSurpriseReason('__origin_missing__')
+        setSurpriseLoading(false)
+        return
+      }
+
+      const pick = await getSurprise({
+        origin,
+        startDate:        form.startDate,
+        endDate:          form.endDate,
+        pastDestinations: existingTrips.map(t => t.destination).filter(Boolean),
+        preferences:      pastPreferences,
+        budget:           form.budget || null,
+        currency:         form.currency,
+        travelStyles:     form.travelStyles,
+      })
+      setForm(f => ({ ...f, destination: pick.destination }))
+      setSurpriseReason(pick.reason)
+    } catch {
+      // silently ignore — user can try again
+    } finally {
+      setSurpriseLoading(false)
+    }
+  }
+
   // ── Form submit (first turn) ────────────────────────────────────────────────
   async function handleFormSubmit(e) {
     e.preventDefault()
@@ -418,22 +485,42 @@ export default function PlanTrip() {
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Destination *</Label>
-              <Input
-                placeholder="e.g. Tokyo, Japan"
-                value={form.destination}
-                onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
-                required
-              />
+          {surpriseReason === '__dates_missing__' ? (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+              <span className="shrink-0 text-base leading-snug">📅</span>
+              <span className="flex-1">Pick your travel dates first — Marco will find the best destination for them.</span>
+              <button type="button" onClick={() => setSurpriseReason('')} className="shrink-0 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 leading-none text-base">✕</button>
             </div>
+          ) : surpriseReason === '__origin_missing__' ? (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+              <span className="shrink-0 text-base leading-snug">📍</span>
+              <span className="flex-1">Fill in where you're travelling from — Marco needs your location to suggest nearby destinations.</span>
+              <button type="button" onClick={() => setSurpriseReason('')} className="shrink-0 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 leading-none text-base">✕</button>
+            </div>
+          ) : surpriseReason ? (
+            <div className="flex items-start gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
+              <span className="shrink-0 text-base leading-snug">✨</span>
+              <span className="flex-1">{surpriseReason}</span>
+              <button type="button" onClick={() => setSurpriseReason('')} className="shrink-0 text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 leading-none text-base">✕</button>
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Travelling from *</Label>
               <Input
                 placeholder="e.g. London"
                 value={form.origin}
                 onChange={e => setField('origin', e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label>Destination *</Label>
+              <Input
+                placeholder="e.g. Tokyo, Japan"
+                value={form.destination}
+                onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
                 required
               />
             </div>
@@ -469,6 +556,20 @@ export default function PlanTrip() {
               />
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleSurprise}
+            disabled={surpriseLoading}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-700
+              text-indigo-600 dark:text-indigo-400 text-sm font-medium py-2.5
+              hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20
+              disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {surpriseLoading
+              ? <><Spinner className="w-4 h-4" /> Marco is picking the best destination…</>
+              : <>✨ Surprise me — Marco picks the destination</>}
+          </button>
 
           <div className="grid grid-cols-3 gap-4">
             <div>

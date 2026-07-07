@@ -282,6 +282,35 @@ export async function fetchAdminStats() {
   return res.json()
 }
 
+// ── Location ─────────────────────────────────────────────────────────────────
+
+export async function reverseGeocode(lat, lon) {
+  const res = await apiFetch(`${BASE}/chat/locate?lat=${lat}&lon=${lon}`)
+  if (!res.ok) throw new Error('Geocoding failed')
+  return res.json()   // { city: "London" }
+}
+
+// ── Surprise Me ──────────────────────────────────────────────────────────────
+
+export async function getSurprise({ origin = '', startDate = '', endDate = '', pastDestinations = [], preferences = [], budget = null, currency = 'EUR', travelStyles = [] } = {}) {
+  const res = await apiFetch(`${BASE}/chat/surprise`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      origin,
+      start_date: startDate,
+      end_date: endDate,
+      past_destinations: pastDestinations,
+      preferences,
+      budget: budget ? parseFloat(budget) : null,
+      currency,
+      travel_styles: travelStyles,
+    }),
+  })
+  if (!res.ok) throw new Error('Could not generate a surprise trip')
+  return res.json()
+}
+
 // ── Extraction ───────────────────────────────────────────────────────────────
 
 export async function extractInfo(messages, currency = 'EUR', signal) {

@@ -18,6 +18,10 @@ _TRANSIENT_FIELDS = {"members", "is_owner", "invite_token"}
 
 
 def _row_to_summary(row: Trip, is_member: bool = False, owner_name: str = "") -> dict:
+    try:
+        blob = json.loads(row.data) if row.data else {}
+    except Exception:
+        blob = {}
     return {
         "trip_id":     row.trip_id,
         "destination": row.destination or "Unknown",
@@ -27,6 +31,7 @@ def _row_to_summary(row: Trip, is_member: bool = False, owner_name: str = "") ->
         "end_date":    row.end_date or "",
         "budget":      row.budget,
         "currency":    row.currency,
+        "origin":      blob.get("origin", ""),
         "is_member":   is_member,
         "owner_name":  owner_name,
     }

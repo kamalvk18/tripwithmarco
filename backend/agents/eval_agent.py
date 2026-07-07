@@ -12,25 +12,25 @@ from datetime import date as _date
 from backend import llm
 from backend.config import LLM_FAST_MODEL
 
-DEFAULT_CRITERIA = ["all_days_covered", "days_have_content", "no_conflicts"]
+DEFAULT_CRITERIA = ["days_have_content", "no_conflicts"]
 
 _BUDGET_CATEGORIES = {"travel", "accommodation", "food", "activities", "transport"}
 
 _EVAL_SYSTEM = """You are a travel itinerary quality checker. Your job is to verify the itinerary is complete enough to render cleanly — not to police the budget.
+
+Day-by-day coverage (is every Day N present) is checked separately by a deterministic parser — do not evaluate it yourself.
 
 Return ONLY a JSON object with this exact structure:
 {
   "passed": true,
   "issues": [],
   "criteria": {
-    "all_days_covered": true,
     "days_have_content": true,
     "no_conflicts": true
   }
 }
 
 Criteria rules:
-- all_days_covered: Every day of the trip has a plan section (Day 1 through Day N all present). Set to null if expected day count is unknown.
 - days_have_content: Every day section has real activities — named morning, afternoon, or evening plans. Fail ONLY if a day section is essentially empty (no activities listed, just a heading or "TBD"). Set to null if cannot be determined.
 - no_conflicts: No single day has two far-apart locations scheduled at the same time slot. Set to null if cannot be determined.
 - passed: true only if every non-null criterion passes and issues is empty.
@@ -38,7 +38,7 @@ Criteria rules:
 
 Budget rule: Budget overages are NOT failures. An itinerary 10–25% over the stated budget is fine — the user can negotiate cheaper options in follow-up. Never set passed=false because of budget alone.
 
-Only check the criteria listed in "Check these criteria". Set unchecked criteria to null.
+Check every criterion listed under "Check these criteria" below.
 No markdown, no explanation. JSON only."""
 
 
@@ -108,8 +108,8 @@ def check_format(text: str, num_days_expected: int | None = None) -> dict:
     Deterministic structural check on itinerary text. No LLM call.
 
     Counts day sections via extract_all_days() and compares to the expected
-    trip length. More reliable than the LLM-based all_days_covered criterion
-    because it uses the same regex the UI depends on.
+    trip length. This is the sole source of truth for day coverage — it uses
+    the same regex the UI depends on, so check() does not judge coverage itself.
 
     Returns:
         {"passed": bool, "issues": list[str], "days_found": int,

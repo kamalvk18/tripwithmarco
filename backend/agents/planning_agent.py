@@ -51,6 +51,7 @@ _EXTRACT_TRIP_SYSTEM = """Extract trip details from a travel planning conversati
 Call save_trip_details with every field. Use "" (or null where allowed) for anything not mentioned.
 For budget: scan ALL user messages; if multiple amounts were stated, use the most recent.
 For trip_type: "road_trip" if the user plans to drive their own/rented vehicle between multiple places; "multi_city" for multiple destinations without self-driving; otherwise "single_destination".
+For destination_flexible: true only if the user explicitly says they are open about where to go ("anywhere", "you choose", "flexible on the destination", "surprise me").
 For stops: fill ONLY when the user explicitly names the places to visit in order — never invent a route yourself.
 For destination on multi-stop trips: a concise route label (e.g. "Amsterdam → Ghent → Bruges") if stops are known, else "<Origin> road trip"."""
 
@@ -102,6 +103,10 @@ _EXTRACT_TRIP_TOOL = {
                     "type": "string",
                     "enum": ["single_destination", "road_trip", "multi_city"],
                 },
+                "destination_flexible": {
+                    "type": "boolean",
+                    "description": "true only if the user explicitly says they are open about where to go.",
+                },
                 "has_own_vehicle": {
                     "type": "boolean",
                     "description": "true if the user has (or will rent) their own car/bike for the trip.",
@@ -123,7 +128,7 @@ _EXTRACT_TRIP_TOOL = {
             "required": [
                 "destination", "city", "country_code", "origin_country", "origin_city",
                 "is_domestic", "start_date", "end_date", "budget",
-                "trip_type", "has_own_vehicle", "stops",
+                "trip_type", "destination_flexible", "has_own_vehicle", "stops",
             ],
         },
     },

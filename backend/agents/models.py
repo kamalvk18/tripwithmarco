@@ -24,11 +24,19 @@ class WorkflowType(str, Enum):
 
 
 class Stop(BaseModel):
-    """One leg of a multi-destination trip."""
+    """One leg of a multi-destination trip.
+
+    The leg describes how the traveller reaches THIS stop from the previous
+    one (from the trip origin for the first stop).
+    """
     city: str
     country_code: str = ""                     # 2-letter ISO
     nights: int = 1
-    drive_hours_from_previous: float | None = None   # None for the first stop
+    leg_mode: str = ""                         # drive | train | bus | flight | "" (unspecified)
+    travel_hours_from_previous: float | None = None
+    approx_km: float | None = None             # leg distance from previous stop
+    from_iata: str = ""                        # flight legs only
+    to_iata: str = ""                          # flight legs only
 
     # Set by the orchestrator once trip dates are known — never by the LLM
     check_in: str = ""             # YYYY-MM-DD
@@ -47,6 +55,7 @@ class ExtractionResult(BaseModel):
     end_date: str = ""             # YYYY-MM-DD or ""
     budget: float | None = None
     trip_type: str = "single_destination"   # single_destination | road_trip | multi_city
+    destination_flexible: bool = False      # user is open — Marco picks the destination
     has_own_vehicle: bool = False
     stops: list[Stop] = Field(default_factory=list)   # user-specified or route-agent-derived
 
@@ -70,6 +79,11 @@ class ExtractionResult(BaseModel):
         td = trip_data or {}
         raw_stops = extracted.get("stops") or td.get("stops") or []
         stops = [Stop(**s) for s in raw_stops if isinstance(s, dict) and s.get("city")]
+        # "single_destination" is the extraction schema default — low signal.
+        # An explicit trip_type on the saved trip (form selector) outranks it.
+        extracted_type = extracted.get("trip_type") or ""
+        if extracted_type == "single_destination" and td.get("trip_type"):
+            extracted_type = ""
         return cls(
             destination=extracted.get("destination") or td.get("destination", ""),
             city=extracted.get("city") or td.get("city", ""),
@@ -81,10 +95,11 @@ class ExtractionResult(BaseModel):
             end_date=extracted.get("end_date") or td.get("end_date", ""),
             budget=extracted.get("budget") or td.get("budget"),
             trip_type=(
-                extracted.get("trip_type")
+                extracted_type
                 or td.get("trip_type")
                 or ("road_trip" if td.get("road_trip") else "single_destination")
             ),
+            destination_flexible=bool(extracted.get("destination_flexible")),
             has_own_vehicle=bool(extracted.get("has_own_vehicle") or td.get("road_trip")),
             stops=stops,
             currency=td.get("currency", "EUR"),
@@ -100,10 +115,13 @@ class ExtractionResult(BaseModel):
     def is_complete(self) -> bool:
         """True if we have enough to attempt full planning.
 
-        A road trip needs an anchor (origin city) rather than a destination —
-        the route agent derives the stops.
+        Multi-stop trips and flexible-destination trips need an anchor
+        (origin city) rather than a destination — the route agent derives
+        stops, and suggest_destination() picks a destination.
         """
-        anchor = self.destination or (self.is_multi_stop and self.origin_city)
+        anchor = self.destination or (
+            (self.is_multi_stop or self.destination_flexible) and self.origin_city
+        )
         return bool(anchor and self.start_date and self.end_date)
 
     @property
@@ -119,6 +137,7 @@ class ExtractionResult(BaseModel):
 
 
 class ResearchEvidence(BaseModel):
+    chosen_destination: str = ""   # "City, Country — reason", when Marco picked it
     route: str = ""                # rendered stop list for multi-stop trips
     flights: str = ""
     hotels: str = ""
@@ -133,11 +152,17 @@ class ResearchEvidence(BaseModel):
     tools_called: list[str] = Field(default_factory=list)
 
     def is_empty(self) -> bool:
-        return not any([self.route, self.flights, self.hotels, self.places, self.weather])
+        return not any([self.chosen_destination, self.route, self.flights, self.hotels, self.places, self.weather])
 
     def as_context_block(self) -> str:
         """Render evidence into a prompt-injected context string for the planner."""
         parts: list[str] = []
+        if self.chosen_destination:
+            parts.append(
+                "## Chosen Destination\n"
+                f"The user was flexible about where to go, and you chose: {self.chosen_destination}. "
+                "Open your response by announcing the destination and the one-line reason, then plan as normal."
+            )
         if self.route:
             parts.append(f"## Planned Route\nFollow this route and nights-per-stop exactly — hotels below were researched for these dates.\n{self.route}")
         if self.flights:

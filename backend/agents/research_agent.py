@@ -7,6 +7,7 @@ execute in parallel. No prose is generated — only ResearchEvidence.
 
 from __future__ import annotations
 
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -70,16 +71,21 @@ def _log_usage(model: str, usage: dict) -> None:
         pass
 
 
+_IATA_RE = re.compile(r"^[A-Z]{3}$")
+
+
 def _render_route(stops: list) -> str:
     """Human-readable route block injected into the planner's system prompt."""
     lines: list[str] = []
     for s in stops:
-        drive = (
-            f", ~{s.drive_hours_from_previous:.1f}h drive from previous stop"
-            if s.drive_hours_from_previous else ""
+        mode = f" by {s.leg_mode}" if s.leg_mode else ""
+        km = f" (~{s.approx_km:.0f} km)" if s.approx_km else ""
+        leg = (
+            f", ~{s.travel_hours_from_previous:.1f}h{mode}{km} from previous stop"
+            if s.travel_hours_from_previous else (mode and f", arrive{mode}{km}")
         )
         dates = f", {s.check_in} → {s.check_out}" if s.check_in else ""
-        lines.append(f"- {s.city}: {s.nights} night(s){dates}{drive}")
+        lines.append(f"- {s.city}: {s.nights} night(s){dates}{leg}")
     return "\n".join(lines)
 
 
@@ -90,11 +96,27 @@ def run_research_stops(extraction: ExtractionResult) -> ResearchEvidence:
     Stops, nights, and dates are already structured (route agent or user),
     so tool parameters are pure Python: hotels per stop, places only for
     stops worth exploring (2+ nights, keeps SerpApi quota in check), weather
-    for the first stop when it falls inside the forecast window. No flights —
-    multi-stop trips here are overland by design.
+    for the first stop when it falls inside the forecast window. Flights are
+    searched only for legs the route agent marked as "flight" with valid
+    IATA codes — drive/train/bus legs are estimated by the planner.
     """
     calls: list[tuple[str, dict]] = []
+    prev_city = extraction.origin_city
     for stop in extraction.stops:
+        if (
+            stop.leg_mode == "flight"
+            and _IATA_RE.match(stop.from_iata or "")
+            and _IATA_RE.match(stop.to_iata or "")
+            and stop.check_in
+        ):
+            calls.append(("search_flights", {
+                "origin_iata": stop.from_iata,
+                "destination_iata": stop.to_iata,
+                "outbound_date": stop.check_in,
+                "origin_city": prev_city or stop.from_iata,
+                "destination_city": stop.city,
+                "currency": extraction.currency,
+            }))
         if stop.check_in and stop.check_out:
             calls.append(("search_hotels", {
                 "destination": stop.city,
@@ -106,6 +128,7 @@ def run_research_stops(extraction: ExtractionResult) -> ResearchEvidence:
                 "query": f"top attractions and restaurants in {stop.city}",
                 "location": stop.city,
             }))
+        prev_city = stop.city
 
     if extraction.start_date and extraction.stops:
         try:
@@ -141,17 +164,23 @@ def run_research_stops(extraction: ExtractionResult) -> ResearchEvidence:
     evidence.hotel_suggestions = collected.get("hotel_suggestions", [])
 
     hotel_sections: list[str] = []
+    flight_sections: list[str] = []
     for idx, (name, params) in enumerate(calls):
         result = results[idx]
         if name == "search_hotels":
             hotel_sections.append(
                 f"### {params['destination']} ({params['check_in_date']} → {params['check_out_date']})\n{result}"
             )
+        elif name == "search_flights":
+            flight_sections.append(
+                f"### {params['origin_city']} → {params['destination_city']} ({params['outbound_date']})\n{result}"
+            )
         elif name == "search_places":
             evidence.places.append(result)
         elif name == "get_weather_forecast":
             evidence.weather = result
     evidence.hotels = "\n\n".join(hotel_sections)
+    evidence.flights = "\n\n".join(flight_sections)
     return evidence
 
 

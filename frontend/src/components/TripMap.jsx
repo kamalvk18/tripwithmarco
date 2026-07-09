@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { useEffect, useMemo } from 'react'
+import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useGeocode } from '@/hooks/useGeocode'
 import { Spinner } from '@/components/ui/Spinner'
@@ -19,25 +19,55 @@ function extractPlaces(content) {
     .slice(0, 3)
 }
 
-export function TripMap({ days, destination, city }) {
-  const centerQuery = city ? `${city}, ${destination}` : destination
+// "Day 3 — Ghent: Canals & Beer Halls" → "Ghent" (multi-stop day-title convention)
+function dayBaseCity(title) {
+  return (title || '').match(/—\s*([^:—]{2,40}):/)?.[1]?.trim() || ''
+}
+
+/** Fit the viewport around the route once stop coordinates resolve. */
+function FitBounds({ points }) {
+  const map = useMap()
+  const key = points.map(p => p.join(',')).join('|')
+  useEffect(() => {
+    if (points.length >= 2) map.fitBounds(points, { padding: [40, 40] })
+  }, [map, key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+
+export function TripMap({ days, destination, city, stops = [] }) {
+  // Multi-stop trips label the destination as a route ("A → B → C") —
+  // that's a name, not a geocodable place. Never put it in a query.
+  const isRouteLabel = !!destination?.includes('→')
+  const region = isRouteLabel ? '' : (destination || '')
+  const stopCities = (stops || []).map(s => s.city).filter(Boolean)
+
+  const centerQuery = region
+    ? (city ? `${city}, ${region}` : region)
+    : (city || stopCities[0] || (destination || '').split('→')[0].trim())
 
   const geocodeItems = useMemo(() => {
     const items = [{ id: '__city__', query: centerQuery }]
+    stopCities.forEach((c, i) => items.push({ id: `stop${i}:${c}`, query: c }))
     for (const day of days) {
-      const places = extractPlaces(day.content || '')
-      for (const place of places) {
-        items.push({ id: `day${day.num}:${place}`, query: `${place}, ${destination}` })
+      const base = dayBaseCity(day.title) || region || city
+      for (const place of extractPlaces(day.content || '')) {
+        items.push({ id: `day${day.num}:${place}`, query: base ? `${place}, ${base}` : place })
       }
     }
     return items
-  }, [days, destination, centerQuery])
+  }, [days, destination, city, centerQuery, stopCities.join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { locations, loading } = useGeocode(geocodeItems)
-  const cityLoc = locations['__city__']
+
+  const stopMarkers = stopCities
+    .map((name, i) => ({ name, order: i, loc: locations[`stop${i}:${name}`] }))
+    .filter(s => s.loc)
+  const routePoints = stopMarkers.map(s => [s.loc.lat, s.loc.lon])
+
+  const mapCenter = locations['__city__'] || stopMarkers[0]?.loc
 
   const markers = geocodeItems
-    .filter(i => i.id !== '__city__' && locations[i.id])
+    .filter(i => i.id.startsWith('day') && locations[i.id])
     .map(item => {
       const [, dayNum, placeName] = item.id.match(/^day(\d+):(.+)$/)
       return { id: item.id, loc: locations[item.id], dayNum: +dayNum, placeName }
@@ -58,18 +88,18 @@ export function TripMap({ days, destination, city }) {
       </div>
 
       {/* Map or loading state */}
-      {!cityLoc && loading ? (
+      {!mapCenter && loading ? (
         <div className="flex items-center justify-center h-[360px] bg-[#12141e] gap-2 text-slate-500 text-sm">
           <Spinner className="w-4 h-4" /> Locating {centerQuery}…
         </div>
-      ) : !cityLoc ? (
+      ) : !mapCenter ? (
         <div className="flex items-center justify-center h-[360px] bg-[#12141e] gap-2 text-slate-500 text-sm">
           Map unavailable — location not found for "{centerQuery}"
         </div>
       ) : (
         <MapContainer
-          center={[cityLoc.lat, cityLoc.lon]}
-          zoom={10}
+          center={[mapCenter.lat, mapCenter.lon]}
+          zoom={stopMarkers.length >= 2 ? 7 : 10}
           style={{ height: 360 }}
           scrollWheelZoom={false}
         >
@@ -77,6 +107,28 @@ export function TripMap({ days, destination, city }) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
+          <FitBounds points={routePoints} />
+
+          {/* Route line + numbered stop markers (multi-stop trips) */}
+          {routePoints.length >= 2 && (
+            <Polyline positions={routePoints} pathOptions={{ color: '#6366f1', weight: 3, dashArray: '6 8', opacity: 0.8 }} />
+          )}
+          {stopMarkers.map(({ name, order, loc }) => (
+            <CircleMarker
+              key={`stop-${order}`}
+              center={[loc.lat, loc.lon]}
+              radius={12}
+              pathOptions={{ fillColor: '#1a1d27', color: '#6366f1', weight: 3, fillOpacity: 1 }}
+            >
+              <Popup>
+                <span className="font-semibold">Stop {order + 1}</span>
+                <br />
+                {name}
+              </Popup>
+            </CircleMarker>
+          ))}
+
+          {/* Per-day place markers */}
           {markers.map(({ id, loc, dayNum, placeName }) => (
             <CircleMarker
               key={id}

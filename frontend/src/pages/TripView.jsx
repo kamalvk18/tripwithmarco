@@ -481,6 +481,7 @@ export default function TripView() {
           days={mapDays}
           destination={tripData.destination}
           city={tripData.city}
+          stops={tripData.stops || []}
         />
       )}
 

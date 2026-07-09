@@ -22,8 +22,6 @@ from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 from backend.auth.deps import get_current_user
 from backend.api.rate_limit import check_chat_limit, check_claude_limit
-from backend import llm
-
 from backend.agents.planning_agent import (
     chat,
     extract_trip_details,
@@ -36,8 +34,8 @@ from backend.agents.models import CriticResult
 from backend.agents.repair_agent import repair
 from backend.evals.judge import judge_itinerary
 from backend.tools.weather import get_weather_forecast, format_weather_for_marco
-from backend.config import LLM_FAST_MODEL, JUDGE_SAMPLE_RATE
-from backend.api.schemas import ChatRequest, ExtractRequest, ExtractResponse, SurpriseRequest, SurpriseResponse
+from backend.config import JUDGE_SAMPLE_RATE
+from backend.api.schemas import ChatRequest, ExtractRequest, ExtractResponse
 
 
 def _write_eval_log(fields: dict) -> None:
@@ -310,35 +308,6 @@ async def chat_sync(req: ChatRequest, _: dict = Depends(check_chat_limit)):
     return result
 
 
-@router.get("/locate")
-async def reverse_geocode(lat: float, lon: float, _: dict = Depends(get_current_user)):
-    """
-    Reverse-geocode a lat/lon to a city name using OpenWeather's Geo API.
-    Used by the frontend to pre-fill the 'Travelling from' field via browser geolocation.
-    Returns: { "city": "London" }
-    """
-    import os, requests as _requests
-    api_key = os.getenv("OPENWEATHER_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="Geocoding unavailable")
-    try:
-        resp = _requests.get(
-            "https://api.openweathermap.org/geo/1.0/reverse",
-            params={"lat": lat, "lon": lon, "limit": 1, "appid": api_key},
-            timeout=5,
-        )
-        resp.raise_for_status()
-        results = resp.json()
-        if not results:
-            raise HTTPException(status_code=404, detail="Location not found")
-        return {"city": results[0].get("name", "")}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        print(f"Reverse geocode error: {exc}")
-        raise HTTPException(status_code=502, detail="Geocoding service unavailable")
-
-
 @router.get("/weather")
 async def get_weather(city: str, country_code: str = "", _: dict = Depends(get_current_user)):
     """
@@ -353,72 +322,6 @@ async def get_weather(city: str, country_code: str = "", _: dict = Depends(get_c
     except Exception as exc:
         print(f"Weather fetch error for city='{city}': {exc}")
         raise HTTPException(status_code=502, detail="Weather service temporarily unavailable")
-
-
-@router.post("/surprise", response_model=SurpriseResponse)
-async def surprise_trip(req: SurpriseRequest, _: dict = Depends(get_current_user)):
-    """
-    f(origin, start_date, end_date) -> destination.
-    All three inputs are required and validated by SurpriseRequest.
-    Returns 422 automatically if any are missing or malformed.
-    """
-    from datetime import datetime as _dt
-    start = _dt.strptime(req.start_date, "%Y-%m-%d").strftime("%B %d, %Y")
-    end   = _dt.strptime(req.end_date,   "%Y-%m-%d").strftime("%B %d, %Y")
-
-    system = (
-        "You are a travel expert. Given an origin city and exact travel dates, "
-        "recommend the single best destination to visit during that specific window. "
-        "The reason MUST reflect conditions during the stated dates (season, weather, events). "
-        "Call save_destination with your pick."
-    )
-    surprise_tool = {
-        "type": "function",
-        "function": {
-            "name": "save_destination",
-            "description": "Persist the recommended destination.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "destination": {"type": "string", "description": '"City, Country"'},
-                    "reason": {
-                        "type": "string",
-                        "description": "One sentence — what makes it great on those exact dates.",
-                    },
-                },
-                "required": ["destination", "reason"],
-            },
-        },
-    }
-
-    user_lines = [
-        f"Origin: {req.origin}",
-        f"Travel dates: {start} to {end}",
-    ]
-    if req.past_destinations:
-        user_lines.append(f"Already visited: {', '.join(req.past_destinations[:20])} — suggest somewhere new.")
-    if req.travel_styles:
-        user_lines.append(f"Travel style: {', '.join(req.travel_styles)}.")
-    if req.preferences:
-        user_lines.append(f"Preferences: {', '.join(req.preferences[:10])}.")
-    if req.budget and req.budget > 0:
-        user_lines.append(f"Budget: ~{req.budget:,.0f} {req.currency} per person.")
-
-    try:
-        resp = await run_in_threadpool(
-            llm.complete,
-            model=LLM_FAST_MODEL,
-            system=system,
-            messages=[{"role": "user", "content": "\n".join(user_lines)}],
-            tools=[surprise_tool],
-            tool_choice={"type": "function", "function": {"name": "save_destination"}},
-            max_tokens=300,
-        )
-        data = resp["tool_calls"][0]["input"]
-        return SurpriseResponse(destination=data["destination"], reason=data["reason"])
-    except Exception as exc:
-        print(f"[surprise] error: {exc}")
-        raise HTTPException(status_code=502, detail="Could not generate a surprise destination")
 
 
 @router.post("/extract", response_model=ExtractResponse)

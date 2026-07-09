@@ -16,7 +16,7 @@ from backend.agents.models import ExtractionResult, PlannerInput, ResearchEviden
 from backend.agents.planning_agent import extract_itinerary, extract_trip_details
 from backend.agents.planner_agent import plan
 from backend.agents.research_agent import run_research, run_research_stops
-from backend.agents.route_agent import assign_stop_dates, derive_route
+from backend.agents.route_agent import assign_stop_dates, derive_route, suggest_destination
 
 
 def _has_existing_itinerary(messages: list) -> bool:
@@ -117,13 +117,37 @@ def orchestrate(
         return
 
     # Step 3 — FULL_PLAN
+    # Flexible destination: the user left "where" to Marco. Pick it before
+    # research fires — everything downstream needs a concrete destination.
+    chosen_reason = ""
+    if not extraction.destination and extraction.destination_flexible and not extraction.is_multi_stop:
+        if on_tool_call:
+            on_tool_call("choosing_destination", {})
+        pick = suggest_destination(extraction)
+        if pick:
+            chosen_reason = f"{pick['destination']} — {pick.get('reason', '')}"
+            extraction = extraction.model_copy(update={
+                "destination": pick["destination"],
+                "city": pick.get("city") or extraction.city,
+                "country_code": pick.get("country_code") or extraction.country_code,
+            })
+        else:
+            # Could not pick — fall back to asking the user
+            planner_input = PlannerInput(
+                extraction=extraction, evidence=ResearchEvidence(), messages=messages,
+            )
+            _store_side_channel(collected, planner_input, system_base, WorkflowType.EXTRACT_ONLY)
+            yield from plan(planner_input, system_base, on_tool_call, collected)
+            return
+
     # Multi-stop trips: fix the route before any research fires, since hotel
     # and places parameters are derived per stop.
+    route_note = ""
     if extraction.is_multi_stop:
         if not extraction.stops:
             if on_tool_call:
                 on_tool_call("planning_route", {})
-            stops, route_label = derive_route(extraction)
+            stops, route_label, route_note = derive_route(extraction)
             if stops:
                 extraction = extraction.model_copy(update={
                     "stops": stops,
@@ -139,8 +163,12 @@ def orchestrate(
     # LLM-derived tool parameters otherwise.
     if extraction.is_multi_stop and extraction.stops:
         evidence = run_research_stops(extraction)
+        if route_note:
+            evidence.route = f"{evidence.route}\n{route_note}" if evidence.route else route_note
     else:
         evidence = run_research(extraction)
+    if chosen_reason:
+        evidence.chosen_destination = chosen_reason
 
     # Surface research tool calls as SSE status events (fires before first text chunk)
     if on_tool_call:

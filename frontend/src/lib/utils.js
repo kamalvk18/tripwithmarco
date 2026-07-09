@@ -116,6 +116,7 @@ export function computeItinerary(messages) {
 
 const TOOL_LABELS = {
   analyzing_trip:       '🧠 Analyzing your trip...',
+  choosing_destination: '🌍 Choosing your destination...',
   planning_route:       '🗺️ Designing your route...',
   search_flights:       '✈️ Checking flights...',
   search_hotels:        '🏨 Searching hotels...',

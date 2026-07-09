@@ -7,11 +7,13 @@ import { cn } from '@/lib/utils'
 import { parseTimeline } from '@/lib/parseTimeline'
 
 function mapUrl(title, destination) {
+  // Route labels ("A → B → C") aren't searchable places — drop them from the query
+  const region = destination?.includes('→') ? '' : destination
   const theme = title
     .replace(/^Day\s+\d+(?:-\d+)?(?:\s*\([^)]*\))?\s*[—\-–:]+\s*/i, '')
     .replace(/^(?:\w+,\s+)?\w+\s+\d+[,:]\s*/i, '')
     .trim()
-  const q = theme ? `${theme}, ${destination}` : destination
+  const q = [theme, region].filter(Boolean).join(', ') || destination
   return `https://maps.google.com/?q=${encodeURIComponent(q)}`
 }
 

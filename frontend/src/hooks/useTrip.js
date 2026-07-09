@@ -124,9 +124,16 @@ export function useTrip(id) {
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
-  /** Apply partial updates, sync cache + local state, and persist to backend. */
+  /** Apply partial updates, sync cache + local state, and persist to backend.
+   *
+   * The base is read from the module cache, NOT the tripData closure: async
+   * callers (e.g. the background budget re-extract in saveMessages) hold a
+   * patch from an older render, and merging onto their stale tripData would
+   * silently revert every newer write — fresh chat messages, regenerated
+   * days — while persisting the reverted state to the backend. */
   function patch(updates) {
-    const next = { ...tripData, ...updates }
+    const base = tripCache.get(id) ?? tripData
+    const next = { ...base, ...updates }
     tripCache.set(id, next)   // keep cache current so revisits stay fresh
     setTripData(next)
     return updateTrip(id, next).catch(() => {})
@@ -145,7 +152,7 @@ export function useTrip(id) {
     dayNum,
     // Actions
     updateMembers: newMembers => {
-      const next = { ...tripData, members: newMembers }
+      const next = { ...(tripCache.get(id) ?? tripData), members: newMembers }
       tripCache.set(id, next)
       setTripData(next)
     },
@@ -167,12 +174,12 @@ export function useTrip(id) {
     },
     // Expense/settlement endpoints already persist to DB — only sync local state here.
     updateSpending: spending => {
-      const next = { ...tripData, spending }
+      const next = { ...(tripCache.get(id) ?? tripData), spending }
       tripCache.set(id, next)
       setTripData(next)
     },
     updateSettlements: settlements => {
-      const next = { ...tripData, settlements }
+      const next = { ...(tripCache.get(id) ?? tripData), settlements }
       tripCache.set(id, next)
       setTripData(next)
     },

@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Plane, Send, Save } from 'lucide-react'
 import { toolLabel } from '@/lib/utils'
-import { extractInfo, getSurprise, listTrips, reverseGeocode, saveTrip, updateTrip } from '@/lib/api'
+import { extractInfo, listTrips, saveTrip, updateTrip } from '@/lib/api'
 import { invalidateTripCache } from '@/hooks/useTrip'
 import { useSSEChat } from '@/hooks/useSSEChat'
 import { Button } from '@/components/ui/Button'
@@ -80,7 +80,8 @@ export default function PlanTrip() {
     dietary: 'None',
     hasTwoWheelerLicence:  (resume?.meta ?? prefill).hasTwoWheelerLicence  ?? false,
     hasFourWheelerLicence: (resume?.meta ?? prefill).hasFourWheelerLicence ?? false,
-    roadTrip:              (resume?.meta ?? prefill).roadTrip              ?? false,
+    tripType:              (resume?.meta ?? prefill).trip_type
+                           || ((resume?.meta ?? prefill).road_trip ? 'road_trip' : 'single'),
     notes: '',
   })
 
@@ -123,8 +124,6 @@ export default function PlanTrip() {
   const [input, setInput]               = useState('')
   const [saving, setSaving]             = useState(false)
   const [draftSaved, setDraftSaved]     = useState(!!resume)
-  const [surpriseLoading, setSurpriseLoading] = useState(false)
-  const [surpriseReason, setSurpriseReason]   = useState('')
   // True once Marco has written a full day-by-day itinerary — shows the Save button
   const [itineraryReady, setItineraryReady] = useState(false)
   // Planning screen state (new trip only — hidden for resume)
@@ -180,8 +179,12 @@ export default function PlanTrip() {
 
   /** Build minimal trip metadata from the form — used for draft saves without Haiku extraction. */
   function buildDraftMeta() {
+    const multiStop = form.tripType !== 'single'
     return {
-      destination: form.destination || (form.roadTrip ? `${form.origin} road trip` : ''),
+      destination: form.destination
+        || (multiStop
+            ? `${form.origin} ${form.tripType === 'road_trip' ? 'road trip' : 'multi-city trip'}`
+            : `Trip from ${form.origin}`),
       dates: `${form.startDate} to ${form.endDate}`,
       start_date: form.startDate,
       end_date: form.endDate,
@@ -190,7 +193,8 @@ export default function PlanTrip() {
       origin: form.origin,
       has_two_wheeler_licence:  form.hasTwoWheelerLicence,
       has_four_wheeler_licence: form.hasFourWheelerLicence,
-      road_trip:                form.roadTrip,
+      trip_type:                multiStop ? form.tripType : '',
+      road_trip:                form.tripType === 'road_trip',
       budget: parseFloat(form.budget) || 0,
       currency: form.currency,
       number_of_travelers: form.numberOfTravelers || 1,
@@ -219,8 +223,12 @@ export default function PlanTrip() {
         : form.hasTwoWheelerLicence  ? "Driving licence: two-wheeler (bike/scooter)."
         : form.hasFourWheelerLicence ? "Driving licence: four-wheeler (car)."
         : '',
-      form.roadTrip
+      form.tripType === 'road_trip'
         ? `This is a road trip with my own vehicle starting from ${form.origin || 'my location'} — plan a multi-stop driving route${form.destination ? ` around ${form.destination}` : ''}.`
+        : form.tripType === 'multi_city'
+        ? `This is a multi-city trip starting from ${form.origin || 'my location'} — plan multiple stops using trains, buses, or flights as appropriate${form.destination ? ` around ${form.destination}` : ''}.`
+        : !form.destination
+        ? `I'm flexible on the destination — you choose the best destination for my dates, budget, and travel style, then plan the trip.`
         : '',
       form.notes ? `Extra notes: ${form.notes}.` : '',
       pastPreferences.length > 0
@@ -360,70 +368,19 @@ export default function PlanTrip() {
     }
   }
 
-  // ── Surprise Me ─────────────────────────────────────────────────────────────
-  async function handleSurprise() {
-    if (!form.startDate || !form.endDate) {
-      setSurpriseReason('__dates_missing__')
-      return
-    }
-    setSurpriseLoading(true)
-    setSurpriseReason('')
-    try {
-      // Resolve origin: use the form value if set, otherwise ask the browser
-      let origin = form.origin
-      if (!origin && navigator.geolocation) {
-        origin = await new Promise(resolve => {
-          navigator.geolocation.getCurrentPosition(
-            async pos => {
-              try {
-                const { city } = await reverseGeocode(pos.coords.latitude, pos.coords.longitude)
-                resolve(city || '')
-              } catch { resolve('') }
-            },
-            () => resolve(''),
-            { timeout: 5000 },
-          )
-        })
-        if (origin) setField('origin', origin)
-      }
-
-      if (!origin) {
-        setSurpriseReason('__origin_missing__')
-        setSurpriseLoading(false)
-        return
-      }
-
-      const pick = await getSurprise({
-        origin,
-        startDate:        form.startDate,
-        endDate:          form.endDate,
-        pastDestinations: existingTrips.map(t => t.destination).filter(Boolean),
-        preferences:      pastPreferences,
-        budget:           form.budget || null,
-        currency:         form.currency,
-        travelStyles:     form.travelStyles,
-      })
-      setForm(f => ({ ...f, destination: pick.destination }))
-      setSurpriseReason(pick.reason)
-    } catch {
-      // silently ignore — user can try again
-    } finally {
-      setSurpriseLoading(false)
-    }
-  }
-
   // ── Form submit (first turn) ────────────────────────────────────────────────
   async function handleFormSubmit(e) {
     e.preventDefault()
-    // Road trips need only an origin — Marco designs the route
-    if (!form.destination && !form.roadTrip) return
+    // Destination is optional — Marco picks one (or designs a route) when blank
     if (!form.origin || !form.startDate || !form.endDate) return
 
-    const dest = (form.destination || `${form.origin} road trip`).trim().toLowerCase()
-    const dupe = existingTrips
-      .filter(t => !t.is_member)
-      .find(t => t.destination?.trim().toLowerCase() === dest)
-    if (dupe) { setDuplicateTrip(dupe); return }
+    if (form.destination) {
+      const dest = form.destination.trim().toLowerCase()
+      const dupe = existingTrips
+        .filter(t => !t.is_member)
+        .find(t => t.destination?.trim().toLowerCase() === dest)
+      if (dupe) { setDuplicateTrip(dupe); return }
+    }
 
     setStarted(true)
     await sendMessage(buildPrompt(), [])
@@ -492,25 +449,14 @@ export default function PlanTrip() {
         )}
 
         <form onSubmit={handleFormSubmit} className="space-y-5">
-          {surpriseReason === '__dates_missing__' ? (
-            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-              <span className="shrink-0 text-base leading-snug">📅</span>
-              <span className="flex-1">Pick your travel dates first — Marco will find the best destination for them.</span>
-              <button type="button" onClick={() => setSurpriseReason('')} className="shrink-0 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 leading-none text-base">✕</button>
-            </div>
-          ) : surpriseReason === '__origin_missing__' ? (
-            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-              <span className="shrink-0 text-base leading-snug">📍</span>
-              <span className="flex-1">Fill in where you're travelling from — Marco needs your location to suggest nearby destinations.</span>
-              <button type="button" onClick={() => setSurpriseReason('')} className="shrink-0 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 leading-none text-base">✕</button>
-            </div>
-          ) : surpriseReason ? (
-            <div className="flex items-start gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
-              <span className="shrink-0 text-base leading-snug">✨</span>
-              <span className="flex-1">{surpriseReason}</span>
-              <button type="button" onClick={() => setSurpriseReason('')} className="shrink-0 text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 leading-none text-base">✕</button>
-            </div>
-          ) : null}
+          <div>
+            <Label>Trip type</Label>
+            <Select value={form.tripType} onChange={e => setField('tripType', e.target.value)}>
+              <option value="single">Single destination</option>
+              <option value="road_trip">Road trip — own vehicle, multi-stop route</option>
+              <option value="multi_city">Multi-city — train, bus, or fly between stops</option>
+            </Select>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -523,13 +469,15 @@ export default function PlanTrip() {
               />
             </div>
             <div>
-              <Label>{form.roadTrip ? 'Destination / region (optional)' : 'Destination *'}</Label>
+              <Label>{form.tripType !== 'single' ? 'Destination / region (optional)' : 'Destination (optional)'}</Label>
               <Input
-                placeholder={form.roadTrip ? 'e.g. Belgium, or leave empty — Marco picks the route' : 'e.g. Tokyo, Japan'}
+                placeholder={form.tripType !== 'single' ? 'e.g. Belgium — or leave blank' : 'e.g. Tokyo, Japan — or leave blank'}
                 value={form.destination}
                 onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
-                required={!form.roadTrip}
               />
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Flexible on where to go? Leave this blank and Marco will pick the best {form.tripType !== 'single' ? 'route' : 'destination'} for your dates.
+              </p>
             </div>
           </div>
 
@@ -563,20 +511,6 @@ export default function PlanTrip() {
               />
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleSurprise}
-            disabled={surpriseLoading}
-            className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-700
-              text-indigo-600 dark:text-indigo-400 text-sm font-medium py-2.5
-              hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20
-              disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {surpriseLoading
-              ? <><Spinner className="w-4 h-4" /> Marco is picking the best destination…</>
-              : <>✨ Surprise me — Marco picks the destination</>}
-          </button>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -663,15 +597,6 @@ export default function PlanTrip() {
                     onChange={e => setField('hasFourWheelerLicence', e.target.checked)}
                   />
                   <span className="text-sm text-slate-600 dark:text-slate-300">Four-wheeler (car)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded accent-indigo-500"
-                    checked={form.roadTrip}
-                    onChange={e => setField('roadTrip', e.target.checked)}
-                  />
-                  <span className="text-sm text-slate-600 dark:text-slate-300">Road trip — own vehicle, multi-stop route</span>
                 </label>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Send, ChevronDown, MessageCircle, LocateFixed } from 'lucide-react'
@@ -52,7 +52,6 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
   const { streaming, toolStatus, send } = useSSEChat()
   const { locate, locating } = useNearMe()
   const [expanded, setExpanded]           = useState(false)
-  const [chatMessages, setChatMessages]   = useState([])
   const [input, setInput]                 = useState('')
   const [streamingText, setStreamingText] = useState('')
   const [quickReplies, setQuickReplies]   = useState([])
@@ -62,7 +61,17 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
   const inputRef        = useRef(null)
   const scrollRef       = useRef(null)
   const shouldScrollRef = useRef(true)
-  const [initialMsgCount] = useState(messages.length)
+
+  // Persisted follow-up history = everything after the initial planning
+  // exchange (form prompt + first itinerary). Those two stay out of the
+  // panel; every later turn is Ask Marco conversation and must survive
+  // reloads — messages are saved to the trip record via onSave.
+  const historyStart = useMemo(() => {
+    const i = messages.findIndex(m => m.role === 'assistant')
+    return i === -1 ? messages.length : i + 1
+  }, [messages])
+
+  const [chatMessages, setChatMessages] = useState(() => messages.slice(historyStart))
 
   useEffect(() => {
     const el = scrollRef.current
@@ -86,11 +95,15 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
   }, [streaming, expanded])
 
   useEffect(() => {
-    const newOnes = messages.slice(initialMsgCount)
-    const inFlight = chatMessages.map(m => m.content)
-    const deduped = newOnes.filter(m => !inFlight.includes(m.content))
-    if (deduped.length > 0) setChatMessages(deduped)
-  }, [messages])
+    // Sync with the persisted record: saved history first, then any in-flight
+    // session messages that haven't landed in the trip record yet.
+    const saved = messages.slice(historyStart)
+    const savedContents = new Set(saved.map(m => m.content))
+    setChatMessages(prev => {
+      const pending = prev.filter(m => !savedContents.has(m.content))
+      return [...saved, ...pending]
+    })
+  }, [messages, historyStart])
 
   async function sendMessage(text) {
     if (!text || streaming) return
@@ -100,7 +113,10 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
     shouldScrollRef.current = true
 
     const userMsg = { role: 'user', content: text }
-    const allMessages = [...messages, ...chatMessages, userMsg]
+    // chatMessages already holds every persisted follow-up (slice from
+    // historyStart), so prepend only the initial planning exchange —
+    // spreading the full messages array would duplicate the follow-ups.
+    const allMessages = [...messages.slice(0, historyStart), ...chatMessages, userMsg]
     setChatMessages(prev => [...prev, userMsg])
 
     let responseText = ''
@@ -114,6 +130,12 @@ export function ChatPanel({ messages, tripData, companion = false, weatherText =
       onChunk: chunk => {
         responseText += chunk
         setStreamingText(responseText)
+      },
+      onEvalCorrection: () => {
+        // Marco is regenerating after a failed self-check — discard the bad
+        // draft so only the corrected version is shown and persisted.
+        responseText = ''
+        setStreamingText('')
       },
       onDone: () => {
         const assistantMsg = { role: 'assistant', content: responseText }

@@ -39,7 +39,9 @@ uv add --dev <package>
 - **INCREMENTAL** — existing itinerary in conversation for the same trip; skips research entirely, planner works from context.
 - **FULL_PLAN** — `research_agent.py` calls travel tools in parallel → `ResearchEvidence`; `planner_agent.py` injects evidence into the system prompt and streams the itinerary.
 
-After streaming, `_sse_stream()` runs `eval_agent.check()` + `judge_itinerary()` concurrently plus a deterministic `check_format()` day-count check. If any fail, `repair_agent.py` regenerates the itinerary reusing the existing `PlannerInput` — no re-extraction, no re-research.
+For multi-stop trips (`trip_type` = `road_trip` / `multi_city`), FULL_PLAN inserts a route step: `route_agent.py` derives ordered stops + nights (forced tool call, strong model, temperature 0) unless the user named them, then `run_research_stops()` fans out hotel/places/weather calls per stop deterministically in Python — no LLM parameter derivation, no flights.
+
+After streaming, `_sse_stream()` runs `eval_agent.check()` (plus `judge_itinerary()` on a sampled fraction — see `JUDGE_SAMPLE_RATE`) and a deterministic `check_format()` day-count check, but only when the output looks like an itinerary. Deterministic failures and empty-day sections trigger `repair_agent.py`, which regenerates reusing the existing `PlannerInput` — no re-extraction, no re-research; the repaired output is re-verified with `check_format()`. `no_conflicts` findings are advisory (logged, never repair). Every evaluated generation is persisted to the `eval_logs` table and aggregated in `GET /api/admin/stats`.
 
 `run_agentic_loop()` is the streaming engine used by the planner and repair agents. It intercepts `tool_use` stop reasons, dispatches to `tool_executor.py`, appends results back to `messages`, and loops until `end_turn`. Do not break this pattern.
 
@@ -70,7 +72,8 @@ Expenses have three extra fields beyond category/amount/date: `paid_by_user_id`,
 | `backend/config.py` | Central constants: model names, token limits, timeouts |
 | `backend/agents/models.py` | Typed pipeline contracts: `ExtractionResult`, `ResearchEvidence`, `PlannerInput`, `CriticResult`, `WorkflowType` |
 | `backend/agents/orchestrator.py` | Routes chat turns: EXTRACT_ONLY / INCREMENTAL / FULL_PLAN; wires research → planner |
-| `backend/agents/research_agent.py` | Single fast-model call to derive tool params → parallel tool execution → `ResearchEvidence` |
+| `backend/agents/research_agent.py` | Single fast-model call to derive tool params → parallel tool execution → `ResearchEvidence`; `run_research_stops()` is the deterministic per-stop variant for multi-stop trips |
+| `backend/agents/route_agent.py` | Derives ordered stops + nights for road trips / multi-city trips (forced tool call, temp 0); `assign_stop_dates()` maps nights to per-stop check-in/out dates |
 | `backend/agents/planner_agent.py` | Injects `ResearchEvidence` into system prompt → streams itinerary via `run_agentic_loop()` |
 | `backend/agents/repair_agent.py` | Reuses `PlannerInput` from first pass to regenerate a failed itinerary (no re-research) |
 | `backend/agents/planning_agent.py` | `chat()` entry point, `run_agentic_loop()` streaming engine, itinerary/day extraction helpers |

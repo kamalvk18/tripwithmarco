@@ -71,7 +71,8 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 tool_input["check_in_date"],
                 tool_input["check_out_date"],
             )
-            set_cached(tool_name, tool_input, result)
+            if hotels:   # never cache empty results — a transient API glitch would poison the cache for the whole TTL
+                set_cached(tool_name, tool_input, result)
             _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 
@@ -85,7 +86,8 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 tool_input["query"],
                 tool_input["location"],
             )
-            set_cached(tool_name, tool_input, result)
+            if places:
+                set_cached(tool_name, tool_input, result)
             _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 
@@ -105,7 +107,8 @@ def execute_tool(tool_name: str, tool_input: dict, collected: dict | None = None
                 tool_input["destination_city"],
                 currency=currency,
             )
-            set_cached(tool_name, tool_input, result)
+            if flights:
+                set_cached(tool_name, tool_input, result)
             _log_tool_call(tool_name, cache_hit=False, success=True, duration_ms=int((time.monotonic() - start) * 1000))
             return result
 

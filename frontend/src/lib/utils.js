@@ -115,10 +115,12 @@ export function computeItinerary(messages) {
 }
 
 const TOOL_LABELS = {
-  search_flights: '✈️ Checking flights...',
-  search_hotels:  '🏨 Searching hotels...',
-  search_places:  '📍 Finding local spots...',
-  get_weather:    '🌤️ Checking weather...',
+  analyzing_trip:       '🧠 Analyzing your trip...',
+  planning_route:       '🗺️ Designing your route...',
+  search_flights:       '✈️ Checking flights...',
+  search_hotels:        '🏨 Searching hotels...',
+  search_places:        '📍 Finding local spots...',
+  get_weather_forecast: '🌤️ Checking weather...',
 }
 export function toolLabel(name) {
   return TOOL_LABELS[name] ?? `🔧 Using ${name}...`

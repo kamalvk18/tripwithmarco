@@ -80,6 +80,7 @@ export default function PlanTrip() {
     dietary: 'None',
     hasTwoWheelerLicence:  (resume?.meta ?? prefill).hasTwoWheelerLicence  ?? false,
     hasFourWheelerLicence: (resume?.meta ?? prefill).hasFourWheelerLicence ?? false,
+    roadTrip:              (resume?.meta ?? prefill).roadTrip              ?? false,
     notes: '',
   })
 
@@ -180,15 +181,16 @@ export default function PlanTrip() {
   /** Build minimal trip metadata from the form — used for draft saves without Haiku extraction. */
   function buildDraftMeta() {
     return {
-      destination: form.destination,
+      destination: form.destination || (form.roadTrip ? `${form.origin} road trip` : ''),
       dates: `${form.startDate} to ${form.endDate}`,
       start_date: form.startDate,
       end_date: form.endDate,
-      city: form.destination,
+      city: form.destination || form.origin,
       country_code: form.destinationCountryCode,
       origin: form.origin,
       has_two_wheeler_licence:  form.hasTwoWheelerLicence,
       has_four_wheeler_licence: form.hasFourWheelerLicence,
+      road_trip:                form.roadTrip,
       budget: parseFloat(form.budget) || 0,
       currency: form.currency,
       number_of_travelers: form.numberOfTravelers || 1,
@@ -205,7 +207,7 @@ export default function PlanTrip() {
     const travelers = form.numberOfTravelers || 1
     return [
       `Plan my trip with these details:`,
-      `Destination: ${form.destination}.`,
+      form.destination ? `Destination: ${form.destination}.` : '',
       `Travelling from: ${form.origin}.`,
       `Dates: ${form.startDate} to ${form.endDate} (${nights} nights).`,
       travelers > 1 ? `Traveling as a group of ${travelers} people.` : '',
@@ -216,6 +218,9 @@ export default function PlanTrip() {
         ? "Driving licences: two-wheeler and four-wheeler."
         : form.hasTwoWheelerLicence  ? "Driving licence: two-wheeler (bike/scooter)."
         : form.hasFourWheelerLicence ? "Driving licence: four-wheeler (car)."
+        : '',
+      form.roadTrip
+        ? `This is a road trip with my own vehicle starting from ${form.origin || 'my location'} — plan a multi-stop driving route${form.destination ? ` around ${form.destination}` : ''}.`
         : '',
       form.notes ? `Extra notes: ${form.notes}.` : '',
       pastPreferences.length > 0
@@ -410,9 +415,11 @@ export default function PlanTrip() {
   // ── Form submit (first turn) ────────────────────────────────────────────────
   async function handleFormSubmit(e) {
     e.preventDefault()
-    if (!form.destination || !form.origin || !form.startDate || !form.endDate) return
+    // Road trips need only an origin — Marco designs the route
+    if (!form.destination && !form.roadTrip) return
+    if (!form.origin || !form.startDate || !form.endDate) return
 
-    const dest = form.destination.trim().toLowerCase()
+    const dest = (form.destination || `${form.origin} road trip`).trim().toLowerCase()
     const dupe = existingTrips
       .filter(t => !t.is_member)
       .find(t => t.destination?.trim().toLowerCase() === dest)
@@ -516,12 +523,12 @@ export default function PlanTrip() {
               />
             </div>
             <div>
-              <Label>Destination *</Label>
+              <Label>{form.roadTrip ? 'Destination / region (optional)' : 'Destination *'}</Label>
               <Input
-                placeholder="e.g. Tokyo, Japan"
+                placeholder={form.roadTrip ? 'e.g. Belgium, or leave empty — Marco picks the route' : 'e.g. Tokyo, Japan'}
                 value={form.destination}
                 onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
-                required
+                required={!form.roadTrip}
               />
             </div>
           </div>
@@ -656,6 +663,15 @@ export default function PlanTrip() {
                     onChange={e => setField('hasFourWheelerLicence', e.target.checked)}
                   />
                   <span className="text-sm text-slate-600 dark:text-slate-300">Four-wheeler (car)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded accent-indigo-500"
+                    checked={form.roadTrip}
+                    onChange={e => setField('roadTrip', e.target.checked)}
+                  />
+                  <span className="text-sm text-slate-600 dark:text-slate-300">Road trip — own vehicle, multi-stop route</span>
                 </label>
               </div>
             </div>

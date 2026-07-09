@@ -140,13 +140,15 @@ export async function chatStream({
       if (!line.startsWith('data:')) continue
       const raw = line.slice(5).trim()
       if (raw === '[DONE]') return
+      let evt
       try {
-        const evt = JSON.parse(raw)
-        if (evt.text             !== undefined) onText?.(evt.text)
-        if (evt.tool_call        !== undefined) onToolCall?.(evt.tool_call)
-        if (evt.booking_data     !== undefined) onBookingData?.(evt.booking_data)
-        if (evt.eval_correction  !== undefined) onEvalCorrection?.()
-      } catch { /* skip malformed */ }
+        evt = JSON.parse(raw)
+      } catch { continue /* skip malformed */ }
+      if (evt.error !== undefined) throw new Error(evt.error)
+      if (evt.text             !== undefined) onText?.(evt.text)
+      if (evt.tool_call        !== undefined) onToolCall?.(evt.tool_call)
+      if (evt.booking_data     !== undefined) onBookingData?.(evt.booking_data)
+      if (evt.eval_correction  !== undefined) onEvalCorrection?.()
     }
   }
 }

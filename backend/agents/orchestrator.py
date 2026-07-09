@@ -15,7 +15,8 @@ from __future__ import annotations
 from backend.agents.models import ExtractionResult, PlannerInput, ResearchEvidence, WorkflowType
 from backend.agents.planning_agent import extract_itinerary, extract_trip_details
 from backend.agents.planner_agent import plan
-from backend.agents.research_agent import run_research
+from backend.agents.research_agent import run_research, run_research_stops
+from backend.agents.route_agent import assign_stop_dates, derive_route
 
 
 def _has_existing_itinerary(messages: list) -> bool:
@@ -54,11 +55,17 @@ def _route(
     return WorkflowType.FULL_PLAN
 
 
-def _store_side_channel(collected: dict | None, planner_input: PlannerInput, system_base: str) -> None:
-    """Store PlannerInput and system_base in collected so _sse_stream() can run repair."""
+def _store_side_channel(
+    collected: dict | None,
+    planner_input: PlannerInput,
+    system_base: str,
+    workflow: WorkflowType,
+) -> None:
+    """Store PlannerInput, system_base, and workflow in collected so _sse_stream() can run repair and eval logging."""
     if collected is not None:
         collected["_planner_input"] = planner_input
         collected["_system_base"] = system_base
+        collected["_workflow"] = workflow.value
 
 
 def orchestrate(
@@ -93,7 +100,7 @@ def orchestrate(
             evidence=ResearchEvidence(),
             messages=messages,
         )
-        _store_side_channel(collected, planner_input, system_base)
+        _store_side_channel(collected, planner_input, system_base, workflow)
         yield from plan(planner_input, system_base, on_tool_call, collected)
         return
 
@@ -105,12 +112,35 @@ def orchestrate(
             evidence=ResearchEvidence(),
             messages=messages,
         )
-        _store_side_channel(collected, planner_input, system_base)
+        _store_side_channel(collected, planner_input, system_base, workflow)
         yield from plan(planner_input, system_base, on_tool_call, collected)
         return
 
-    # Step 3 — FULL_PLAN: call travel tools in parallel
-    evidence = run_research(extraction)
+    # Step 3 — FULL_PLAN
+    # Multi-stop trips: fix the route before any research fires, since hotel
+    # and places parameters are derived per stop.
+    if extraction.is_multi_stop:
+        if not extraction.stops:
+            if on_tool_call:
+                on_tool_call("planning_route", {})
+            stops, route_label = derive_route(extraction)
+            if stops:
+                extraction = extraction.model_copy(update={
+                    "stops": stops,
+                    "destination": route_label or extraction.destination,
+                })
+        elif not extraction.stops[0].check_in:
+            # User named the stops — assign dates deterministically
+            extraction = extraction.model_copy(update={
+                "stops": assign_stop_dates(extraction.stops, extraction.start_date, extraction.end_date),
+            })
+
+    # Research: deterministic per-stop fan-out for multi-stop trips (no LLM),
+    # LLM-derived tool parameters otherwise.
+    if extraction.is_multi_stop and extraction.stops:
+        evidence = run_research_stops(extraction)
+    else:
+        evidence = run_research(extraction)
 
     # Surface research tool calls as SSE status events (fires before first text chunk)
     if on_tool_call:
@@ -129,5 +159,5 @@ def orchestrate(
         evidence=evidence,
         messages=messages,
     )
-    _store_side_channel(collected, planner_input, system_base)
+    _store_side_channel(collected, planner_input, system_base, workflow)
     yield from plan(planner_input, system_base, on_tool_call, collected)

@@ -48,17 +48,86 @@ def load_prompt(filename: str) -> str:
 SYSTEM_PROMPT = load_prompt("marco.md")
 
 _EXTRACT_TRIP_SYSTEM = """Extract trip details from a travel planning conversation.
-Return ONLY a JSON object with these exact fields:
-- destination: descriptive trip name (e.g. "Kraków, Poland", "Austrian Alps")
-- city: main city for weather lookup (e.g. "Kraków", "Salzburg")
-- country_code: 2-letter ISO code (e.g. "PL", "AT", "ES")
-- origin_country: full country name the user is travelling FROM (e.g. "India", "United Kingdom"), or "" if not mentioned
-- is_domestic: true if origin and destination are in the same country, false if different countries, null if cannot be determined
-- start_date: YYYY-MM-DD format, or "" if not mentioned
-- end_date: YYYY-MM-DD format, or "" if not mentioned
-- budget: scan ALL user messages for a budget amount and return it as a plain number (e.g. 50000). If the user stated multiple amounts, return the most recent. Return null only if no budget was ever mentioned anywhere in the conversation.
+Call save_trip_details with every field. Use "" (or null where allowed) for anything not mentioned.
+For budget: scan ALL user messages; if multiple amounts were stated, use the most recent.
+For trip_type: "road_trip" if the user plans to drive their own/rented vehicle between multiple places; "multi_city" for multiple destinations without self-driving; otherwise "single_destination".
+For stops: fill ONLY when the user explicitly names the places to visit in order — never invent a route yourself.
+For destination on multi-stop trips: a concise route label (e.g. "Amsterdam → Ghent → Bruges") if stops are known, else "<Origin> road trip"."""
 
-No markdown, no explanation. JSON object only."""
+_EXTRACT_TRIP_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "save_trip_details",
+        "description": "Persist structured trip details extracted from the conversation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "destination": {
+                    "type": "string",
+                    "description": 'Descriptive trip name (e.g. "Kraków, Poland", "Austrian Alps"), or "" if not mentioned.',
+                },
+                "city": {
+                    "type": "string",
+                    "description": 'Main city for weather lookup (e.g. "Kraków", "Salzburg").',
+                },
+                "country_code": {
+                    "type": "string",
+                    "description": '2-letter ISO code of the destination country (e.g. "PL", "AT", "ES").',
+                },
+                "origin_country": {
+                    "type": "string",
+                    "description": 'Full country name the user is travelling FROM (e.g. "India"), or "" if not mentioned.',
+                },
+                "origin_city": {
+                    "type": "string",
+                    "description": 'City the user is travelling FROM (e.g. "Amsterdam"), or "" if not mentioned.',
+                },
+                "is_domestic": {
+                    "type": ["boolean", "null"],
+                    "description": "true if origin and destination are the same country, false if different, null if unknown.",
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": 'YYYY-MM-DD, or "" if not mentioned.',
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": 'YYYY-MM-DD, or "" if not mentioned.',
+                },
+                "budget": {
+                    "type": ["number", "null"],
+                    "description": "Budget as a plain number (e.g. 50000). null only if never mentioned anywhere.",
+                },
+                "trip_type": {
+                    "type": "string",
+                    "enum": ["single_destination", "road_trip", "multi_city"],
+                },
+                "has_own_vehicle": {
+                    "type": "boolean",
+                    "description": "true if the user has (or will rent) their own car/bike for the trip.",
+                },
+                "stops": {
+                    "type": "array",
+                    "description": "Ordered stops ONLY if the user explicitly named them. Empty otherwise.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string"},
+                            "country_code": {"type": "string", "description": "2-letter ISO"},
+                            "nights": {"type": "integer", "description": "Nights at this stop if stated; 1 if unknown."},
+                        },
+                        "required": ["city", "nights"],
+                    },
+                },
+            },
+            "required": [
+                "destination", "city", "country_code", "origin_country", "origin_city",
+                "is_domestic", "start_date", "end_date", "budget",
+                "trip_type", "has_own_vehicle", "stops",
+            ],
+        },
+    },
+}
 
 _CHECKLIST_SYSTEM = """You are a pre-trip checklist generator. Your job is to return only the items a traveller would genuinely regret not having. If in doubt, leave it out.
 
@@ -81,8 +150,7 @@ RULES — apply every rule before generating any item:
    - Skip: items that don't apply to this specific destination/season/traveller
    - Skip: redundant items (don't list both "waterproof jacket" and "quick-dry clothes" unless both genuinely add value)
 
-Return ONLY valid JSON — an array of objects, no prose, no markdown fences:
-[{"category": "kit", "item": "Waterproof bag for electronics during monsoon", "priority": "high"}]
+Call save_checklist with the final items.
 
 Categories (only include if genuinely relevant):
 - visa: entry requirements (SKIP for domestic)
@@ -91,12 +159,62 @@ Categories (only include if genuinely relevant):
 - documents: booking confirmations; passport validity for international only
 - kit: destination/season-specific gear only
 
-Return 5-8 items total. Fewer is better. Every item must earn its place.
-Priority MUST be one of: "high", "normal", "low"."""
+Return 5-8 items total. Fewer is better. Every item must earn its place."""
+
+_CHECKLIST_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "save_checklist",
+        "description": "Persist the pre-trip checklist items.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "category": {
+                                "type": "string",
+                                "enum": ["visa", "health", "insurance", "documents", "kit"],
+                            },
+                            "item": {
+                                "type": "string",
+                                "description": 'Concrete, destination-specific reminder (e.g. "Waterproof bag for electronics during monsoon").',
+                            },
+                            "priority": {"type": "string", "enum": ["high", "normal", "low"]},
+                        },
+                        "required": ["category", "item", "priority"],
+                    },
+                },
+            },
+            "required": ["items"],
+        },
+    },
+}
 
 _PREFERENCES_SYSTEM = """Extract 3-6 specific travel preference signals from the post-trip debrief provided.
 Each signal should be a short, concrete statement (under 10 words) about the traveller's likes, dislikes, or patterns — things that should inform future trip planning.
-Return ONLY a JSON array of strings. Example: ["Prefers local food markets over sit-down restaurants", "Dislikes crowded tourist sites", "Loves half-day hikes with a view"]"""
+Call save_preferences with the signals. Example signals: "Prefers local food markets over sit-down restaurants", "Dislikes crowded tourist sites"."""
+
+_PREFERENCES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "save_preferences",
+        "description": "Persist extracted travel preference signals.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "preferences": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "3-6 short preference statements, each under 10 words.",
+                },
+            },
+            "required": ["preferences"],
+        },
+    },
+}
 
 _INJECT_RE = re.compile(r"(##\s|ignore\s|system\s*prompt|<\s*/?system|instruction)", re.IGNORECASE)
 _WEATHER_CITY_ALIASES = {
@@ -144,13 +262,17 @@ def extract_trip_details(messages: list) -> dict:
             model=LLM_FAST_MODEL,
             system=_EXTRACT_TRIP_SYSTEM,
             messages=[{"role": "user", "content": f"Extract trip details:\n\n{conversation}"}],
+            tools=[_EXTRACT_TRIP_TOOL],
+            tool_choice={"type": "function", "function": {"name": "save_trip_details"}},
             max_tokens=EXTRACTION_MAX_TOKENS,
+            temperature=0,
         )
         _log_usage(LLM_FAST_MODEL, resp["usage"])
-        raw = resp["text"].strip().strip("```json").strip("```").strip()
-        return _normalize_extracted_trip_details(json.loads(raw))
-    except Exception:
-        return {}
+        if resp["tool_calls"]:
+            return _normalize_extracted_trip_details(resp["tool_calls"][0]["input"])
+    except Exception as exc:
+        print(f"extract_trip_details error: {exc}")
+    return {}
 
 
 def extract_structured_itinerary(itinerary: str, currency: str = "EUR", issues_hint: str = "") -> dict:
@@ -209,6 +331,7 @@ def extract_structured_itinerary(itinerary: str, currency: str = "EUR", issues_h
             tools=[_tool],
             tool_choice={"type": "function", "function": {"name": "save_itinerary"}},
             max_tokens=512,
+            temperature=0,
         )
         _log_usage(LLM_FAST_MODEL, resp["usage"])
         if resp["tool_calls"]:
@@ -339,6 +462,7 @@ def run_agentic_loop(
         if iteration > 1:
             print(f"🔄 Agentic loop iteration {iteration}")
         tool_calls = []
+        finish_reason = None
 
         for event_type, data in llm.stream(
             _model, current_messages, system=system, tools=TOOL_DEFINITIONS, max_tokens=_max_tokens
@@ -349,6 +473,15 @@ def run_agentic_loop(
                 tool_calls.append(data)
             elif event_type == "usage":
                 _log_usage(_model, data)
+            elif event_type == "finish_reason":
+                finish_reason = data
+
+        if finish_reason == "length":
+            # Output hit max_tokens — flag it so the caller can skip repair
+            # (a regenerate would truncate at the same ceiling).
+            print(f"⚠️  Generation truncated at max_tokens={_max_tokens}")
+            if collected is not None:
+                collected["_truncated"] = True
 
         if not tool_calls:
             return
@@ -496,13 +629,13 @@ def generate_checklist(destination: str, passport_country: str, start_date: str)
                 f"Passport / citizenship country: {passport_country or 'not specified'}\n"
                 f"Departure date: {start_date or 'soon'}"
             )}],
+            tools=[_CHECKLIST_TOOL],
+            tool_choice={"type": "function", "function": {"name": "save_checklist"}},
             max_tokens=1024,
+            temperature=0,
         )
         _log_usage(LLM_FAST_MODEL, resp["usage"])
-        raw = resp["text"].strip()
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-        items = json.loads(raw)
+        items = resp["tool_calls"][0]["input"]["items"] if resp["tool_calls"] else []
         validated = []
         for item in items:
             if isinstance(item, dict) and "item" in item:
@@ -539,13 +672,13 @@ def extract_preferences(debrief_text: str) -> list[str]:
             model=LLM_FAST_MODEL,
             system=_PREFERENCES_SYSTEM,
             messages=[{"role": "user", "content": debrief_text}],
+            tools=[_PREFERENCES_TOOL],
+            tool_choice={"type": "function", "function": {"name": "save_preferences"}},
             max_tokens=256,
+            temperature=0,
         )
         _log_usage(LLM_FAST_MODEL, resp["usage"])
-        raw = resp["text"].strip()
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-        result = json.loads(raw)
+        result = resp["tool_calls"][0]["input"].get("preferences", []) if resp["tool_calls"] else []
         return [str(p) for p in result if isinstance(p, str)]
     except Exception as exc:
         print(f"extract_preferences error: {exc}")

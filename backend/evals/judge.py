@@ -7,22 +7,43 @@ Usage:
     # {"coverage": 4, "specificity": 5, "budget_fit": 3, "data_usage": 4, "flags": [...]}
 """
 
-import json
 import re
 from backend import llm
 from backend.config import LLM_FAST_MODEL
 
-_JUDGE_SYSTEM = """Score this travel itinerary on 4 dimensions (1–5 each):
+_JUDGE_SYSTEM = """Score this travel itinerary on 4 dimensions (1–5 each), then call save_scores:
 
 - coverage: does it produce a real plan for every requested day? (1 = days missing, 5 = every day fully planned)
 - specificity: does it name real places, hotels, restaurants? (1 = vague generics like "visit local restaurants", 5 = specific named venues)
 - budget_fit: are the estimated costs realistic for the destination? Overages up to 25% above the stated budget are acceptable and should score 4–5 if the trip experience is good. Only score 1–2 if costs are wildly unrealistic for the destination entirely, or no cost estimates are provided at all.
 - data_usage: does it reference actual flight/hotel data or fall back to generic advice? (1 = all generic, 5 = clearly uses live data)
 
-Return ONLY a JSON object — no markdown, no prose:
-{"coverage": N, "specificity": N, "budget_fit": N, "data_usage": N, "flags": ["<one-line note on any serious issue>"]}
-
 flags should be an empty array if there are no issues worth noting. Never flag a minor budget overage as a serious issue."""
+
+_SCORE = {"type": "integer", "minimum": 1, "maximum": 5}
+
+_JUDGE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "save_scores",
+        "description": "Persist the itinerary quality scores.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "coverage": _SCORE,
+                "specificity": _SCORE,
+                "budget_fit": _SCORE,
+                "data_usage": _SCORE,
+                "flags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "One-line note per serious issue. Empty if none.",
+                },
+            },
+            "required": ["coverage", "specificity", "budget_fit", "data_usage", "flags"],
+        },
+    },
+}
 
 
 def _infer_data_usage(itinerary: str) -> int:
@@ -45,7 +66,7 @@ def judge_itinerary(itinerary: str, original_request: str) -> dict:
     Score an itinerary on 4 quality dimensions using Haiku as judge.
 
     Returns dict with integer scores (1-5) and a flags list.
-    Raises ValueError if the model returns unparseable output.
+    Raises ValueError if the model returns unusable output.
     """
     resp = llm.complete(
         model=LLM_FAST_MODEL,
@@ -54,13 +75,14 @@ def judge_itinerary(itinerary: str, original_request: str) -> dict:
             "role": "user",
             "content": f"Original request: {original_request}\n\nItinerary to score:\n{itinerary[:8000]}",
         }],
+        tools=[_JUDGE_TOOL],
+        tool_choice={"type": "function", "function": {"name": "save_scores"}},
         max_tokens=300,
+        temperature=0,
     )
-    raw = resp["text"].strip().strip("```json").strip("```").strip()
-    try:
-        result = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Judge returned non-JSON: {raw!r}") from exc
+    if not resp["tool_calls"]:
+        raise ValueError(f"Judge returned no tool call: {resp['text']!r}")
+    result = resp["tool_calls"][0]["input"]
 
     for dim in ("coverage", "specificity", "budget_fit", "data_usage"):
         if dim not in result:

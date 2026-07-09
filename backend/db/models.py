@@ -67,6 +67,24 @@ class ToolCallLog(Base):
     created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class EvalLog(Base):
+    """One row per evaluated itinerary generation (planning turns that produced an itinerary)."""
+    __tablename__ = "eval_logs"
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    workflow             = Column(String,  nullable=True, index=True)   # extract_only | incremental | full_plan
+    days_expected        = Column(Integer, nullable=True)
+    days_found           = Column(Integer, nullable=True)
+    format_passed        = Column(Boolean, nullable=False, default=True)
+    eval_passed          = Column(Boolean, nullable=True)               # LLM structural check; null if skipped/errored
+    issues               = Column(Text,    nullable=True)               # JSON array — blocking + advisory
+    judge_scores         = Column(Text,    nullable=True)               # JSON object; null unless judge was sampled
+    truncated            = Column(Boolean, nullable=False, default=False)
+    repair_ran           = Column(Boolean, nullable=False, default=False)
+    repair_format_passed = Column(Boolean, nullable=True)               # null if repair didn't run
+    created_at           = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class ClaudeUsageLog(Base):
     """One row per Claude API response (streaming or sync)."""
     __tablename__ = "claude_usage_logs"

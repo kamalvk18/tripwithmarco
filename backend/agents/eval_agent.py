@@ -5,7 +5,6 @@ Uses the fast model for low-latency, cheap evaluation.
 Called after the agentic loop completes — never blocks streaming.
 """
 
-import json
 import re
 from datetime import date as _date
 
@@ -20,16 +19,6 @@ _EVAL_SYSTEM = """You are a travel itinerary quality checker. Your job is to ver
 
 Day-by-day coverage (is every Day N present) is checked separately by a deterministic parser — do not evaluate it yourself.
 
-Return ONLY a JSON object with this exact structure:
-{
-  "passed": true,
-  "issues": [],
-  "criteria": {
-    "days_have_content": true,
-    "no_conflicts": true
-  }
-}
-
 Criteria rules:
 - days_have_content: Every day section has real activities — named morning, afternoon, or evening plans. Fail ONLY if a day section is essentially empty (no activities listed, just a heading or "TBD"). Set to null if cannot be determined.
 - no_conflicts: No single day has two far-apart locations scheduled at the same time slot. Set to null if cannot be determined.
@@ -38,12 +27,39 @@ Criteria rules:
 
 Budget rule: Budget overages are NOT failures. An itinerary 10–25% over the stated budget is fine — the user can negotiate cheaper options in follow-up. Never set passed=false because of budget alone.
 
-Check every criterion listed under "Check these criteria" below.
-No markdown, no explanation. JSON only."""
+Check every criterion listed under "Check these criteria" below, then call save_eval with the verdict."""
+
+_EVAL_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "save_eval",
+        "description": "Persist the itinerary quality verdict.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "issues": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Short, specific description of each failure. Empty if all pass.",
+                },
+                "criteria": {
+                    "type": "object",
+                    "properties": {
+                        "days_have_content": {"type": ["boolean", "null"]},
+                        "no_conflicts": {"type": ["boolean", "null"]},
+                    },
+                    "required": ["days_have_content", "no_conflicts"],
+                },
+            },
+            "required": ["passed", "issues", "criteria"],
+        },
+    },
+}
 
 
-def _looks_like_itinerary(text: str) -> bool:
-    """Quick guard — skip eval for casual chat responses."""
+def looks_like_itinerary(text: str) -> bool:
+    """Quick guard — casual chat responses skip eval, judge, and eval logging."""
     return bool(re.search(r'(?i)\bday\s+[12]\b', text)) and len(text) > 400
 
 
@@ -67,7 +83,7 @@ def check(
     active_criteria = criteria or DEFAULT_CRITERIA
     empty_result = {"passed": True, "issues": [], "criteria": {c: None for c in active_criteria}}
 
-    if not _looks_like_itinerary(output):
+    if not looks_like_itinerary(output):
         return empty_result
 
     context_lines: list[str] = []
@@ -89,10 +105,14 @@ def check(
             model=LLM_FAST_MODEL,
             system=_EVAL_SYSTEM,
             messages=[{"role": "user", "content": prompt}],
+            tools=[_EVAL_TOOL],
+            tool_choice={"type": "function", "function": {"name": "save_eval"}},
             max_tokens=300,
+            temperature=0,
         )
-        raw = resp["text"].strip().strip("```json").strip("```").strip()
-        result = json.loads(raw)
+        if not resp["tool_calls"]:
+            return empty_result
+        result = resp["tool_calls"][0]["input"]
         # Normalise: ensure expected keys exist
         result.setdefault("passed", True)
         result.setdefault("issues", [])
@@ -115,7 +135,7 @@ def check_format(text: str, num_days_expected: int | None = None) -> dict:
         {"passed": bool, "issues": list[str], "days_found": int,
          "days_expected": int | None, "has_budget": bool}
     """
-    if not _looks_like_itinerary(text):
+    if not looks_like_itinerary(text):
         return {
             "passed": True, "issues": [],
             "days_found": 0, "days_expected": num_days_expected, "has_budget": False,

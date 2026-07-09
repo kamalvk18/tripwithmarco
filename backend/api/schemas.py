@@ -244,6 +244,8 @@ class ExtractResponse(BaseModel):
     start_date: str = ""
     end_date: str = ""
     budget: float | None = None
+    trip_type: str = "single_destination"
+    stops: list[dict[str, Any]] = Field(default_factory=list)
     days: list[DayPlan] = Field(default_factory=list)
     budget_breakdown: dict[str, Any] = Field(default_factory=dict)
 

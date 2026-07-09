@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 
 from backend import llm
 from backend.agents.models import ExtractionResult, ResearchEvidence
@@ -69,6 +70,91 @@ def _log_usage(model: str, usage: dict) -> None:
         pass
 
 
+def _render_route(stops: list) -> str:
+    """Human-readable route block injected into the planner's system prompt."""
+    lines: list[str] = []
+    for s in stops:
+        drive = (
+            f", ~{s.drive_hours_from_previous:.1f}h drive from previous stop"
+            if s.drive_hours_from_previous else ""
+        )
+        dates = f", {s.check_in} → {s.check_out}" if s.check_in else ""
+        lines.append(f"- {s.city}: {s.nights} night(s){dates}{drive}")
+    return "\n".join(lines)
+
+
+def run_research_stops(extraction: ExtractionResult) -> ResearchEvidence:
+    """
+    Deterministic research fan-out for multi-stop trips — no LLM call.
+
+    Stops, nights, and dates are already structured (route agent or user),
+    so tool parameters are pure Python: hotels per stop, places only for
+    stops worth exploring (2+ nights, keeps SerpApi quota in check), weather
+    for the first stop when it falls inside the forecast window. No flights —
+    multi-stop trips here are overland by design.
+    """
+    calls: list[tuple[str, dict]] = []
+    for stop in extraction.stops:
+        if stop.check_in and stop.check_out:
+            calls.append(("search_hotels", {
+                "destination": stop.city,
+                "check_in_date": stop.check_in,
+                "check_out_date": stop.check_out,
+            }))
+        if stop.nights >= 2:
+            calls.append(("search_places", {
+                "query": f"top attractions and restaurants in {stop.city}",
+                "location": stop.city,
+            }))
+
+    if extraction.start_date and extraction.stops:
+        try:
+            days_until = (date.fromisoformat(extraction.start_date) - date.today()).days
+            if 0 <= days_until <= 7:
+                first = extraction.stops[0]
+                calls.append(("get_weather_forecast", {
+                    "city": first.city, "country_code": first.country_code,
+                }))
+        except ValueError:
+            pass
+
+    evidence = ResearchEvidence(route=_render_route(extraction.stops))
+    if not calls:
+        return evidence
+
+    for name, params in calls:
+        print(f"🔍 Research (deterministic): {name} ← {params}")
+
+    lock = threading.Lock()
+    collected: dict = {}
+
+    def _run(item: tuple[int, tuple[str, dict]]) -> tuple[int, str]:
+        idx, (name, params) = item
+        return idx, execute_tool(name, params, collected=collected, _lock=lock)
+
+    results: dict[int, str] = {}
+    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+        for idx, result in pool.map(_run, list(enumerate(calls))):
+            results[idx] = result
+
+    evidence.tools_called = [name for name, _ in calls]
+    evidence.hotel_suggestions = collected.get("hotel_suggestions", [])
+
+    hotel_sections: list[str] = []
+    for idx, (name, params) in enumerate(calls):
+        result = results[idx]
+        if name == "search_hotels":
+            hotel_sections.append(
+                f"### {params['destination']} ({params['check_in_date']} → {params['check_out_date']})\n{result}"
+            )
+        elif name == "search_places":
+            evidence.places.append(result)
+        elif name == "get_weather_forecast":
+            evidence.weather = result
+    evidence.hotels = "\n\n".join(hotel_sections)
+    return evidence
+
+
 def run_research(extraction: ExtractionResult) -> ResearchEvidence:
     """
     Collect travel data for a trip by calling tools in parallel.
@@ -86,6 +172,7 @@ def run_research(extraction: ExtractionResult) -> ResearchEvidence:
         tools=TOOL_DEFINITIONS,
         tool_choice="required",
         max_tokens=512,
+        temperature=0,
     )
     _log_usage(LLM_FAST_MODEL, resp["usage"])
 

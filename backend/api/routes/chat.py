@@ -14,6 +14,8 @@ SSE format:
 import asyncio
 import json
 import queue
+import random
+import traceback
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -34,8 +36,20 @@ from backend.agents.models import CriticResult
 from backend.agents.repair_agent import repair
 from backend.evals.judge import judge_itinerary
 from backend.tools.weather import get_weather_forecast, format_weather_for_marco
-from backend.config import LLM_FAST_MODEL
+from backend.config import LLM_FAST_MODEL, JUDGE_SAMPLE_RATE
 from backend.api.schemas import ChatRequest, ExtractRequest, ExtractResponse, SurpriseRequest, SurpriseResponse
+
+
+def _write_eval_log(fields: dict) -> None:
+    """Persist one eval_logs row. Fire-and-forget — never blocks or raises."""
+    try:
+        from backend.db.database import SessionLocal
+        from backend.db.models import EvalLog
+        with SessionLocal() as session:
+            session.add(EvalLog(**fields))
+            session.commit()
+    except Exception:
+        pass
 
 
 async def _run_judge(text: str, original_request: str) -> dict | None:
@@ -70,99 +84,180 @@ async def _sse_stream(messages: list, trip_data: dict | None, companion_mode: bo
         tool_queue.put_nowait(tool_name)
 
     raw_messages = [m.model_dump() for m in messages]
-    gen = chat(
-        raw_messages,
-        trip_data=trip_data,
-        companion_mode=companion_mode,
-        on_tool_call=on_tool_call,
-        collected=collected,
-    )
 
-    async for chunk in iterate_in_threadpool(gen):
-        # Drain any tool events that fired before this text chunk arrives
+    try:
+        gen = chat(
+            raw_messages,
+            trip_data=trip_data,
+            companion_mode=companion_mode,
+            on_tool_call=on_tool_call,
+            collected=collected,
+        )
+
+        # Pump the sync generator from a worker thread into a queue so we can
+        # emit keepalives while long silent phases run (extraction + research
+        # send no bytes for 10-30s and proxies kill idle streams). SSE comment
+        # lines (": ...") are ignored by clients but keep the connection warm.
+        out_q: queue.Queue = queue.Queue()
+        _END, _ERROR = "end", "error"
+
+        def _pump() -> None:
+            try:
+                for chunk in gen:
+                    out_q.put(("chunk", chunk))
+                out_q.put((_END, None))
+            except Exception as exc:
+                out_q.put((_ERROR, exc))
+
+        pump_task = asyncio.get_running_loop().run_in_executor(None, _pump)
+
+        yield ": connected\n\n"
+        if not companion_mode:
+            # Immediate status so the UI shows progress during extraction/research
+            yield f"data: {json.dumps({'tool_call': 'analyzing_trip'})}\n\n"
+
+        while True:
+            try:
+                kind, payload = await asyncio.to_thread(out_q.get, True, 10.0)
+            except queue.Empty:
+                yield ": keepalive\n\n"
+                continue
+            if kind == _END:
+                break
+            if kind == _ERROR:
+                raise payload
+            # Drain any tool events that fired before this text chunk arrives
+            while True:
+                try:
+                    tool_name = tool_queue.get_nowait()
+                    yield f"data: {json.dumps({'tool_call': tool_name})}\n\n"
+                except queue.Empty:
+                    break
+            chunks.append(payload)
+            yield f"data: {json.dumps({'text': payload})}\n\n"
+
+        await pump_task
+
+        # Final drain (tool events after the last text chunk, e.g. tail tool calls)
         while True:
             try:
                 tool_name = tool_queue.get_nowait()
                 yield f"data: {json.dumps({'tool_call': tool_name})}\n\n"
             except queue.Empty:
                 break
-        chunks.append(chunk)
-        yield f"data: {json.dumps({'text': chunk})}\n\n"
 
-    # Final drain (tool events after the last text chunk, e.g. tail tool calls)
-    while True:
-        try:
-            tool_name = tool_queue.get_nowait()
-            yield f"data: {json.dumps({'tool_call': tool_name})}\n\n"
-        except queue.Empty:
-            break
+        # Pop internal side-channel keys before sending booking_data to the client
+        planner_input = collected.pop("_planner_input", None)
+        system_base = collected.pop("_system_base", None)
+        workflow = collected.pop("_workflow", None)
+        truncated = collected.pop("_truncated", False)
 
-    # Pop internal side-channel keys before sending booking_data to the client
-    planner_input = collected.pop("_planner_input", None)
-    system_base = collected.pop("_system_base", None)
+        if collected:
+            yield f"data: {json.dumps({'booking_data': collected})}\n\n"
 
-    if collected:
-        yield f"data: {json.dumps({'booking_data': collected})}\n\n"
-
-    # Eval + judge for planning responses (not companion mode short replies)
-    if not companion_mode:
+        # Eval layer — only for planning turns that produced an itinerary.
+        # Casual replies and clarifying questions skip eval, judge, and logging.
         full_text = "".join(chunks)
-        first_user_msg = next(
-            (m["content"] for m in raw_messages if m.get("role") == "user"), ""
-        )
-        num_days = planner_input.extraction.num_days if planner_input else None
+        if not companion_mode and eval_agent.looks_like_itinerary(full_text):
+            num_days = planner_input.extraction.num_days if planner_input else None
 
-        # Run structural eval and LLM judge concurrently; format check is pure Python
-        structural, judge_scores = await asyncio.gather(
-            run_in_threadpool(eval_agent.check, full_text, trip_data),
-            _run_judge(full_text, first_user_msg),
-        )
-        format_check = eval_agent.check_format(full_text, num_days)
-
-        # Merge into a single CriticResult — all issue sources feed one repair decision
-        all_issues = structural.get("issues", []) + format_check["issues"]
-        critic_result = CriticResult(
-            passed=structural.get("passed", True) and format_check["passed"],
-            issues=all_issues,
-            criteria=structural.get("criteria", {}),
-            scores=judge_scores,
-        )
-
-        eval_payload = {
-            **critic_result.model_dump(),
-            "format": {
-                "days_found": format_check["days_found"],
-                "days_expected": format_check["days_expected"],
-                "has_budget": format_check["has_budget"],
-            },
-        }
-        yield f"data: {json.dumps({'eval_result': eval_payload})}\n\n"
-
-        if not critic_result.passed and critic_result.issues:
-            ack = "\n\n*Give me a moment — I spotted an issue with that plan. Let me fix it...*\n\n"
-            yield f"data: {json.dumps({'text': ack})}\n\n"
-            yield f"data: {json.dumps({'eval_correction': 'starting'})}\n\n"
-
-            correction_collected: dict = {}
-
-            if planner_input and system_base:
-                # Repair using existing PlannerInput — no re-extraction, no re-research
-                repair_gen = repair(
-                    planner_input, full_text, critic_result, system_base,
-                    collected=correction_collected,
+            # Judge is sampled trend telemetry — persisted below, never gates repair
+            judge_scores = None
+            if random.random() < JUDGE_SAMPLE_RATE:
+                first_user_msg = next(
+                    (m["content"] for m in raw_messages if m.get("role") == "user"), ""
+                )
+                structural, judge_scores = await asyncio.gather(
+                    run_in_threadpool(eval_agent.check, full_text, trip_data),
+                    _run_judge(full_text, first_user_msg),
                 )
             else:
-                # Fallback: no PlannerInput available
-                correction_messages = raw_messages + [
-                    {"role": "assistant", "content": full_text},
-                    {"role": "user", "content": critic_result.repair_instruction() or "Please fix the issues and regenerate the complete plan."},
-                ]
-                repair_gen = chat(correction_messages, trip_data=trip_data, companion_mode=False, collected=correction_collected)
+                structural = await run_in_threadpool(eval_agent.check, full_text, trip_data)
+            format_check = eval_agent.check_format(full_text, num_days)
 
-            async for chunk in iterate_in_threadpool(repair_gen):
-                yield f"data: {json.dumps({'text': chunk})}\n\n"
-            if correction_collected:
-                yield f"data: {json.dumps({'booking_data': correction_collected})}\n\n"
+            # Repair triggers on deterministic failures (missing days) and empty
+            # day sections. no_conflicts is advisory — logged for prompt tuning,
+            # not worth a 2x-cost regeneration on the fast model's word alone.
+            days_ok = structural.get("criteria", {}).get("days_have_content") is not False
+            blocking_issues = list(format_check["issues"])
+            advisory_issues: list[str] = []
+            if days_ok:
+                advisory_issues = structural.get("issues", [])
+            else:
+                blocking_issues += structural.get("issues", [])
+            if advisory_issues:
+                print(f"ℹ️  Eval advisory (not repairing): {advisory_issues}")
+
+            critic_result = CriticResult(
+                passed=not blocking_issues,
+                issues=blocking_issues,
+                criteria=structural.get("criteria", {}),
+                scores=judge_scores,
+            )
+
+            repair_ran = False
+            repair_format_passed = None
+
+            if truncated:
+                # Repair regenerates with the same max_tokens ceiling, so it
+                # would truncate identically — don't burn a second generation.
+                print("⚠️  Skipping repair: output was truncated at max_tokens")
+            elif not critic_result.passed:
+                ack = "\n\n*Give me a moment — I spotted an issue with that plan. Let me fix it...*\n\n"
+                yield f"data: {json.dumps({'text': ack})}\n\n"
+                yield f"data: {json.dumps({'eval_correction': 'starting'})}\n\n"
+
+                repair_ran = True
+                correction_collected: dict = {}
+
+                if planner_input and system_base:
+                    # Repair using existing PlannerInput — no re-extraction, no re-research
+                    repair_gen = repair(
+                        planner_input, full_text, critic_result, system_base,
+                        collected=correction_collected,
+                    )
+                else:
+                    # Fallback: no PlannerInput available
+                    correction_messages = raw_messages + [
+                        {"role": "assistant", "content": full_text},
+                        {"role": "user", "content": critic_result.repair_instruction() or "Please fix the issues and regenerate the complete plan."},
+                    ]
+                    repair_gen = chat(correction_messages, trip_data=trip_data, companion_mode=False, collected=correction_collected)
+
+                repair_chunks: list[str] = []
+                async for chunk in iterate_in_threadpool(repair_gen):
+                    repair_chunks.append(chunk)
+                    yield f"data: {json.dumps({'text': chunk})}\n\n"
+
+                # Verify the repair actually fixed the structure — the outcome
+                # is persisted so repair effectiveness is measurable.
+                repair_format = eval_agent.check_format("".join(repair_chunks), num_days)
+                repair_format_passed = repair_format["passed"]
+                if not repair_format_passed:
+                    print(f"⚠️  Repair output still fails format check: {repair_format['issues']}")
+
+                for key in ("_planner_input", "_system_base", "_workflow", "_truncated"):
+                    correction_collected.pop(key, None)
+                if correction_collected:
+                    yield f"data: {json.dumps({'booking_data': correction_collected})}\n\n"
+
+            # Persist the quality outcome (fire-and-forget, like usage logging)
+            asyncio.get_running_loop().run_in_executor(None, _write_eval_log, {
+                "workflow": workflow,
+                "days_expected": format_check["days_expected"],
+                "days_found": format_check["days_found"],
+                "format_passed": format_check["passed"],
+                "eval_passed": structural.get("passed"),
+                "issues": json.dumps(blocking_issues + advisory_issues),
+                "judge_scores": json.dumps(judge_scores) if judge_scores else None,
+                "truncated": truncated,
+                "repair_ran": repair_ran,
+                "repair_format_passed": repair_format_passed,
+            })
+    except Exception as exc:
+        print(f"❌ SSE stream error: {exc}")
+        traceback.print_exc()
+        yield f"data: {json.dumps({'error': 'Something went wrong while generating this response. Please try again.'})}\n\n"
 
     yield "data: [DONE]\n\n"
 
@@ -273,12 +368,28 @@ async def surprise_trip(req: SurpriseRequest, _: dict = Depends(get_current_user
 
     system = (
         "You are a travel expert. Given an origin city and exact travel dates, "
-        "recommend the single best destination to visit during that specific window.\n\n"
-        "Return ONLY a valid JSON object:\n"
-        '{"destination": "City, Country", "reason": "one sentence — what makes it great on those exact dates"}\n\n'
+        "recommend the single best destination to visit during that specific window. "
         "The reason MUST reflect conditions during the stated dates (season, weather, events). "
-        "No markdown. No extra text."
+        "Call save_destination with your pick."
     )
+    surprise_tool = {
+        "type": "function",
+        "function": {
+            "name": "save_destination",
+            "description": "Persist the recommended destination.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "destination": {"type": "string", "description": '"City, Country"'},
+                    "reason": {
+                        "type": "string",
+                        "description": "One sentence — what makes it great on those exact dates.",
+                    },
+                },
+                "required": ["destination", "reason"],
+            },
+        },
+    }
 
     user_lines = [
         f"Origin: {req.origin}",
@@ -299,10 +410,11 @@ async def surprise_trip(req: SurpriseRequest, _: dict = Depends(get_current_user
             model=LLM_FAST_MODEL,
             system=system,
             messages=[{"role": "user", "content": "\n".join(user_lines)}],
+            tools=[surprise_tool],
+            tool_choice={"type": "function", "function": {"name": "save_destination"}},
             max_tokens=300,
         )
-        raw = resp["text"].strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-        data = json.loads(raw)
+        data = resp["tool_calls"][0]["input"]
         return SurpriseResponse(destination=data["destination"], reason=data["reason"])
     except Exception as exc:
         print(f"[surprise] error: {exc}")
@@ -350,6 +462,8 @@ async def extract_info(req: ExtractRequest, _: dict = Depends(check_claude_limit
         start_date=extracted.get("start_date", ""),
         end_date=extracted.get("end_date", ""),
         budget=float(raw_budget) if raw_budget is not None else None,
+        trip_type=extracted.get("trip_type") or "single_destination",
+        stops=[s for s in (extracted.get("stops") or []) if isinstance(s, dict)],
         days=extract_all_days(itinerary),
         budget_breakdown=clean_breakdown,
     )

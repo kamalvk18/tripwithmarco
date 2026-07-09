@@ -20,9 +20,18 @@ Example — DeepSeek via Vercel AI Gateway:
 
 import json
 import litellm
-from backend.config import LLM_BASE_URL, LLM_API_KEY
+from backend.config import (
+    LLM_BASE_URL,
+    LLM_API_KEY,
+    LLM_COMPLETE_TIMEOUT_SECONDS,
+    LLM_STREAM_TIMEOUT_SECONDS,
+    LLM_RETRIES,
+)
 
 litellm.suppress_debug_info = True
+# Drop request params a provider doesn't support (e.g. stream_options,
+# cache_control) instead of erroring — keeps the wrapper provider-agnostic.
+litellm.drop_params = True
 
 
 def _base_kwargs() -> dict:
@@ -41,20 +50,53 @@ def _base_kwargs() -> dict:
 _BASE_KW = _base_kwargs()
 
 
-def _build_messages(system: str | list | None, messages: list) -> list:
-    """Prepend system prompt as a system-role message (OpenAI format)."""
+def _supports_prompt_cache(model: str) -> bool:
+    """Anthropic prompt caching only works on the direct Anthropic route."""
+    return model.startswith("anthropic/") and not LLM_BASE_URL
+
+
+def _build_messages(model: str, system: str | list | None, messages: list) -> list:
+    """Prepend system prompt as a system-role message (OpenAI format).
+
+    On the direct Anthropic route the system prompt is sent as a content block
+    with a cache_control breakpoint, so repeated calls with the same system
+    prefix (agentic loop iterations, repair pass, multi-turn chat) hit the
+    prompt cache instead of paying full input price every time.
+    """
     result = []
     if system:
         if isinstance(system, list):
-            # Flatten Anthropic-style blocks, dropping cache_control
+            # Flatten Anthropic-style blocks into one text body
             text = "\n\n".join(
                 b["text"] for b in system if isinstance(b, dict) and "text" in b
             )
         else:
             text = system
-        result.append({"role": "system", "content": text})
+        if _supports_prompt_cache(model):
+            result.append({
+                "role": "system",
+                "content": [{
+                    "type": "text",
+                    "text": text,
+                    "cache_control": {"type": "ephemeral"},
+                }],
+            })
+        else:
+            result.append({"role": "system", "content": text})
     result.extend(messages)
     return result
+
+
+def _usage_dict(usage) -> dict:
+    """Normalise a LiteLLM usage object, including Anthropic cache counters."""
+    details = getattr(usage, "prompt_tokens_details", None)
+    cached = (getattr(details, "cached_tokens", 0) or 0) if details else 0
+    return {
+        "input_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+        "output_tokens": getattr(usage, "completion_tokens", 0) or 0,
+        "cache_read_tokens": (getattr(usage, "cache_read_input_tokens", 0) or 0) or cached,
+        "cache_creation_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+    }
 
 
 def stream(
@@ -63,6 +105,7 @@ def stream(
     system: str | list | None = None,
     tools: list | None = None,
     max_tokens: int = 4096,
+    temperature: float | None = None,
 ):
     """
     Stream an LLM completion.
@@ -71,10 +114,15 @@ def stream(
         ("text",     str)                                  — text delta
         ("tool_use", {"id": str, "name": str, "input": dict}) — completed tool call
         ("usage",    {"input_tokens": int, "output_tokens": int, ...})
+        ("finish_reason", str)  — why generation stopped ("stop", "length", "tool_calls")
     """
     base = f" via {LLM_BASE_URL}" if LLM_BASE_URL else ""
     print(f"🤖 LLM stream: {model}{base}")
-    msgs = _build_messages(system, messages)
+    msgs = _build_messages(model, system, messages)
+
+    kw = {**_BASE_KW}
+    if temperature is not None:
+        kw["temperature"] = temperature
 
     resp = litellm.completion(
         model=model,
@@ -82,16 +130,26 @@ def stream(
         tools=tools or None,
         max_tokens=max_tokens,
         stream=True,
-        **_BASE_KW,
+        stream_options={"include_usage": True},
+        timeout=LLM_STREAM_TIMEOUT_SECONDS,
+        **kw,
     )
 
     tool_acc: dict[int, dict] = {}
     usage_data: dict = {}
+    finish_reason: str | None = None
 
     for chunk in resp:
         if not chunk.choices:
+            # Usage-only final chunk (stream_options include_usage)
+            if getattr(chunk, "usage", None):
+                usage_data = _usage_dict(chunk.usage)
             continue
-        delta = chunk.choices[0].delta
+        choice = chunk.choices[0]
+        delta = choice.delta
+
+        if choice.finish_reason:
+            finish_reason = choice.finish_reason
 
         if delta.content:
             yield ("text", delta.content)
@@ -108,18 +166,17 @@ def stream(
                 if tc.function and tc.function.arguments:
                     tool_acc[idx]["arguments"] += tc.function.arguments
 
-        # Some providers send usage on the final chunk
+        # Some providers send usage on the final content chunk instead
         if getattr(chunk, "usage", None):
-            usage_data = {
-                "input_tokens": getattr(chunk.usage, "prompt_tokens", 0) or 0,
-                "output_tokens": getattr(chunk.usage, "completion_tokens", 0) or 0,
-                "cache_read_tokens": 0,
-                "cache_creation_tokens": 0,
-            }
+            usage_data = _usage_dict(chunk.usage)
 
     if usage_data:
-        print(f"   → {usage_data['input_tokens']} in / {usage_data['output_tokens']} out tokens")
+        print(f"   → {usage_data['input_tokens']} in / {usage_data['output_tokens']} out tokens"
+              f" (cache read {usage_data['cache_read_tokens']})")
         yield ("usage", usage_data)
+
+    if finish_reason:
+        yield ("finish_reason", finish_reason)
 
     # Emit fully-accumulated tool calls after the stream ends
     for idx in sorted(tool_acc):
@@ -138,6 +195,7 @@ def complete(
     tools: list | None = None,
     tool_choice=None,
     max_tokens: int = 256,
+    temperature: float | None = None,
 ) -> dict:
     """
     Non-streaming completion.
@@ -151,17 +209,21 @@ def complete(
     """
     base = f" via {LLM_BASE_URL}" if LLM_BASE_URL else ""
     print(f"🤖 LLM complete: {model}{base}")
-    msgs = _build_messages(system, messages)
+    msgs = _build_messages(model, system, messages)
     kw = {**_BASE_KW}
     if tools:
         kw["tools"] = tools
     if tool_choice:
         kw["tool_choice"] = tool_choice
+    if temperature is not None:
+        kw["temperature"] = temperature
 
     resp = litellm.completion(
         model=model,
         messages=msgs,
         max_tokens=max_tokens,
+        timeout=LLM_COMPLETE_TIMEOUT_SECONDS,
+        num_retries=LLM_RETRIES,
         **kw,
     )
 
@@ -181,12 +243,7 @@ def complete(
             })
 
     if resp.usage:
-        result["usage"] = {
-            "input_tokens": getattr(resp.usage, "prompt_tokens", 0) or 0,
-            "output_tokens": getattr(resp.usage, "completion_tokens", 0) or 0,
-            "cache_read_tokens": 0,
-            "cache_creation_tokens": 0,
-        }
+        result["usage"] = _usage_dict(resp.usage)
         u = result["usage"]
         print(f"   → {u['input_tokens']} in / {u['output_tokens']} out tokens")
 

@@ -15,7 +15,7 @@ from sqlalchemy import func
 
 from backend.auth.deps import get_admin_user
 from backend.db.database import SessionLocal
-from backend.db.models import Trip, User, UsageLog, ToolCallLog, ClaudeUsageLog
+from backend.db.models import Trip, User, UsageLog, ToolCallLog, ClaudeUsageLog, EvalLog
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -263,6 +263,43 @@ def get_stats(current_user: dict = Depends(get_admin_user)):
             for d, v in daily_tokens.items()
         ]
 
+        # ── Itinerary quality (eval_logs, last 30 days) ───────────────────────
+        month_evals = [
+            l for l in session.query(EvalLog).all()
+            if l.created_at and _to_utc(l.created_at) >= month_ago
+        ]
+        evals_total   = len(month_evals)
+        format_fails  = sum(1 for l in month_evals if not l.format_passed)
+        truncations   = sum(1 for l in month_evals if l.truncated)
+        repairs       = [l for l in month_evals if l.repair_ran]
+        repairs_fixed = sum(1 for l in repairs if l.repair_format_passed)
+
+        issue_counts: Counter = Counter()
+        for l in month_evals:
+            try:
+                issue_counts.update(json.loads(l.issues or "[]"))
+            except Exception:
+                pass
+
+        judge_totals: dict[str, list] = defaultdict(list)
+        for l in month_evals:
+            try:
+                for dim, score in (json.loads(l.judge_scores or "{}")).items():
+                    if isinstance(score, (int, float)):
+                        judge_totals[dim].append(score)
+            except Exception:
+                pass
+
+        eval_stats = {
+            "generations":       evals_total,
+            "format_fail_rate":  round(format_fails / evals_total * 100, 1) if evals_total else 0.0,
+            "truncations":       truncations,
+            "repairs_ran":       len(repairs),
+            "repair_success_rate": round(repairs_fixed / len(repairs) * 100, 1) if repairs else None,
+            "top_issues":        [{"issue": i, "count": c} for i, c in issue_counts.most_common(5)],
+            "judge_averages":    {dim: round(sum(v) / len(v), 2) for dim, v in judge_totals.items() if v},
+        }
+
     return {
         "users": {
             "total":              total_users,
@@ -304,4 +341,5 @@ def get_stats(current_user: dict = Depends(get_admin_user)):
             "total_cost_usd":  total_cost_usd,
             "daily":           daily_llm,
         },
+        "evals": eval_stats,
     }
